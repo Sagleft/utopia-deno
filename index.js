@@ -91,7 +91,7 @@ class Utopia {
             "method": "",
             "params": {}
         };
-        __.method = method;
+        __.method = method || "getSystemInfo";
         __.params = params || {};
 
         return new Promise((resolve, reject) => {
