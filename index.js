@@ -20,7 +20,8 @@ class Utopia {
             "newInstantMessage": [],
             "channelJoinChanged": [],
             "newPaymentTransfer": [],
-            "newEmail": []
+            "newEmail": [],
+            "any": []
         };
         this.token = token || "no_token";
         if (this.token == "no_token") {
@@ -32,7 +33,7 @@ class Utopia {
         this.token = token.toUpperCase();
         this.apiHost = apiHost || "127.0.0.1";
         this.apiPort = apiPort || "20000";
-        this.webSocketUnavailable = true;
+        this.webSocketUnavailable = false;
         this.getWebSocketState().then((data) => {
             if (data.result !== 0) {
                 this.wsPort = data.result.toString();
@@ -41,6 +42,9 @@ class Utopia {
                 this.webSocket.on("message", (data) => {
                     var parsed = JSON.parse(data);
                     for (var cb in this.listenedEvents[parsed.type]) {
+                        this.listenedEvents[parsed.type][cb](parsed);
+                    }
+                    for(var cb in this.listenedEvents["any"]){
                         this.listenedEvents[parsed.type][cb](parsed);
                     }
                 });
@@ -52,6 +56,9 @@ class Utopia {
                     this.webSocket.on("message", (data) => {
                         var parsed = JSON.parse(data);
                         for (var cb in this.listenedEvents[parsed.type]) {
+                            this.listenedEvents[parsed.type][cb](parsed);
+                        }
+                        for(var cb in this.listenedEvents["any"]){
                             this.listenedEvents[parsed.type][cb](parsed);
                         }
                     });
@@ -68,6 +75,9 @@ class Utopia {
                 this.webSocket = new ws(`ws://${this.apiHost}:${this.wsPort}/UtopiaWSS?token=${this.token}`);
                 this.webSocket.on("message", (data) => {
                     for (var cb in this.listenedEvents[parsed.type]) {
+                        this.listenedEvents[parsed.type][cb](parsed);
+                    }
+                    for(var cb in this.listenedEvents["any"]){
                         this.listenedEvents[parsed.type][cb](parsed);
                     }
                 });
@@ -112,13 +122,13 @@ class Utopia {
 
     /**
      * Event listener
-     * @param {"newOutgoingChannelMessage"|"newChannelMessage"|"newOutgoingInstantMessage"|"newInstantMessage"|"channelJoinChanged"|"newPaymentTransfer"|"newEmail"} event Event type
+     * @param {"newOutgoingChannelMessage"|"newChannelMessage"|"newOutgoingInstantMessage"|"newInstantMessage"|"channelJoinChanged"|"newPaymentTransfer"|"newEmail"|"any"} event Event type
      * @param {function} callback 
      */
 
     on(event, callback) {
         if (this.webSocketUnavailable) { return; }
-        this.listenedEvents[event].push(callback);
+        this.listenedEvents[event]?this.listenedEvents[event].push(callback):false;
     }
 
     /**
