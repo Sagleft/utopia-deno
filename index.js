@@ -44,7 +44,7 @@ class Utopia {
                     for (var cb in this.listenedEvents[parsed.type]) {
                         this.listenedEvents[parsed.type][cb](parsed);
                     }
-                    for(var cb in this.listenedEvents["any"]){
+                    for (var cb in this.listenedEvents["any"]) {
                         this.listenedEvents[parsed.type][cb](parsed);
                     }
                 });
@@ -58,7 +58,7 @@ class Utopia {
                         for (var cb in this.listenedEvents[parsed.type]) {
                             this.listenedEvents[parsed.type][cb](parsed);
                         }
-                        for(var cb in this.listenedEvents["any"]){
+                        for (var cb in this.listenedEvents["any"]) {
                             this.listenedEvents[parsed.type][cb](parsed);
                         }
                     });
@@ -77,7 +77,7 @@ class Utopia {
                     for (var cb in this.listenedEvents[parsed.type]) {
                         this.listenedEvents[parsed.type][cb](parsed);
                     }
-                    for(var cb in this.listenedEvents["any"]){
+                    for (var cb in this.listenedEvents["any"]) {
                         this.listenedEvents[parsed.type][cb](parsed);
                     }
                 });
@@ -128,12 +128,12 @@ class Utopia {
 
     on(event, callback) {
         if (this.webSocketUnavailable) { return; }
-        this.listenedEvents[event]?this.listenedEvents[event].push(callback):false;
+        this.listenedEvents[event] ? this.listenedEvents[event].push(callback) : false;
     }
 
     /**
      * Method getSystemInfo returns information about current packaging version of the Utopia application in the Response block. The method is called without using any parameters.
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     getSystemInfo() {
@@ -142,7 +142,7 @@ class Utopia {
 
     /**
      * Method getProfileStatus returns the profile status.
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     getProfileStatus() {
@@ -153,7 +153,7 @@ class Utopia {
      * Method setProfileStatus sets the new status, as well as the mood message in the Utopia Ecosystem. The method is called by using Status parameter line with possible options: (Available, Away, DoNotDisturb, Invisible, Offline) and if desired Mood which contains mood message text (up to 130 symbols). In the Response field, the status of completed operation is displayed.
      * @param {string} status Available | Away | DoNotDisturb | Invisible | Offline
      * @param {string} mood Mood, visible to any contact
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     setProfileStatus(status, mood) {
@@ -162,7 +162,7 @@ class Utopia {
 
     /**
      * Method getOwnContact returns information about yourself.
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     getOwnContact() {
@@ -170,9 +170,28 @@ class Utopia {
     }
 
     /**
+     * Method getContactGroups returns to the Response field the list group names.
+     * @returns {Promise<Object>} Promise
+    */
+
+    getContactGroups() {
+        return this.sendRequest("getContactGroups");
+    }
+
+    /**
+     * Method getContactsByGroup returns to the Response field the list of contacts from group with corresponded name.
+     * @param {string} groupName Group name
+     * @returns {Promise<Object>} Promise
+    */
+
+    getContactsByGroup(groupName) {
+        return this.sendRequest("getContactsByGroup", { "groupName": groupName });
+    }
+
+    /**
      * Method getContacts returns to the Response field the list of contacts, it is possible to search by full or partial matching of the Public Key and Nickname. As a parameter it is possible to specify Filter that transfers the text line to search for contacts ( has to contain full or partial matching with Public Key or Nickname of the searched contact).The Filter "#owner#" will return information about yourself.
      * @param {string} filter String, filtering result
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     getContacts(filter) {
@@ -185,7 +204,7 @@ class Utopia {
      * @param {string} pk Contact's Public key
      * @param {string} coder BASE64/HEX
      * @param {string} format PNG/JPG
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     getContactAvatar(pk, coder, format) {
@@ -200,7 +219,7 @@ class Utopia {
      * @param {string} channelId Channel ID
      * @param {string} coder BASE64/HEX
      * @param {string} format PNG/JPG
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
     */
 
     getChannelAvatar(channelId, coder, format) {
@@ -214,7 +233,7 @@ class Utopia {
      * Method setContactGroup creates group or transfers selected contact into the group in the contact list. The method is called by using the Public Key parameters, which pass the Public Key of the contact (Public Key can be recognized by using the getContacts method) and Group Name, which passes the group name for creation or transfer (up to 32 symbols). In the Response field the status of completion of the operation is displayed.
      * @param {string} pk Contact's Public Key
      * @param {string} groupName Name of group, in which you would like to move contact
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     setContactGroup(pk, groupName) {
@@ -224,10 +243,31 @@ class Utopia {
     }
 
     /**
+     * Method renameContactGroup renames group name. The method is called by using current and new name group.
+     * @param {string} oldName Group old name
+     * @param {string} newName Group new name
+     * @returns {Promise<Object>} Promise
+    */
+
+    renameContactGroup(oldName, newName) {
+        return this.sendRequest("renameContactGroup", { "oldGroupName": oldName, "newGroupName": newName });
+    }
+
+    /**
+     * Method deleteContactGroup delete corresponded group name, all contacts are moved under default group.
+     * @param {string} groupName Group name
+     * @returns {Promise<Object>} Promise
+    */
+
+    deleteContactGroup(groupName) {
+        return this.sendRequest("deleteContactGroup", { "groupName": groupName });
+    }
+
+    /**
      * Method setContactNick sets the selected value for the Nickname field for the selected contact. The method is called by using the Public Key parameters, which pass on the Public Key for the contact (Public Key can be recognized by using the getContacts method) and New Nick, which passes on the new Nickname (up to 32 symbols). Empty value to be set as the Nickname Public Key of the contact. In the Response field the status of completion of the operation is displayed.
      * @param {string} pk Contact's Public Key
      * @param {string} newNick Nickname, that you would like to assign to contact
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     setContactNick(pk, newNick) {
@@ -240,7 +280,7 @@ class Utopia {
      * Method sendInstantMessage sends personal message(IM) to the selected contact from the contact list. The method is called by using the To parameter, that passes on the Public Key or Nickname to whom the message would be sent (Public Key can be recognized by using the getContacts method) and Text, which contains the text of the message. In the Response field the status of completion of the operation is displayed.
      * @param {string} to Contact's Public Key
      * @param {string} text Message
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     sendInstantMessage(to, text) {
@@ -254,7 +294,7 @@ class Utopia {
      * @param {string} to Contact's Public Key
      * @param {string} text Message
      * @param {string} messageId Quoted message ID
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     sendInstantQuote(to, text, messageId) {
@@ -269,7 +309,7 @@ class Utopia {
      * @param {string} to Contact's Public Key
      * @param {string} collection Stickers Collection ID
      * @param {string} name Sticker ID
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     sendInstantSticker(to, collection, name) {
@@ -281,7 +321,7 @@ class Utopia {
 
     /**
      * Method getStickerCollections returns collection names of stickers.
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     getStickerCollections() {
@@ -291,7 +331,7 @@ class Utopia {
     /**
      * Method getStickerNamesByCollection returns available names from corresponded collection.
      * @param {string} collectionName Sticker Collection ID
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     getStickerNamesByCollection(collectionName) {
@@ -304,7 +344,7 @@ class Utopia {
      * @param {string} collectionName Sticker Collection ID
      * @param {string} stickerName Sticker ID
      * @param {string} coder BASE64
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     getImageSticker(collectionName, stickerName, coder) {
@@ -318,7 +358,7 @@ class Utopia {
      * Method sendInstantBuzz sends buzz personal message(IM) to the selected contact from the contact list with comments.
      * @param {string} to Contact's Public Key
      * @param {string} comments Buzz comment
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     sendInstantBuzz(to, comments) {
@@ -333,7 +373,7 @@ class Utopia {
      * @param {string} channelId Channel ID
      * @param {string} description Description
      * @param {string} comments Comment, attached to invite
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     sendInstantInvitation(to, channelId, description, comments) {
@@ -349,7 +389,7 @@ class Utopia {
     /**
      * Method removeInstantMessages removes all personal message(IM) of the selected contact from the contact list.
      * @param {string} pk Contact's Public Key
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     removeInstantMessages(pk) {
@@ -360,7 +400,7 @@ class Utopia {
     /**
      * Method getContactMessages returns in the Response block the history of communication from personal chat with selected contact. The method is called by using the Public Key parameter, that passes on the Public Key of the contact (Public Key can be recognized by using the getContacts method)
      * @param {string} pk Contact's Public Key
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     getContactMessages(pk) {
@@ -373,7 +413,7 @@ class Utopia {
      * @param {string} to Contact's Public Key
      * @param {string} subject Email Subject
      * @param {string} body Email Body
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     sendEmailMessage(to, subject, body) {
@@ -389,7 +429,7 @@ class Utopia {
      * @param {string} to Public Key or Card ID to send Cryptons on
      * @param {string} amount Amount of Cryptons to be sent
      * @param {string} comment Comment, attached to payment
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     sendPayment(cardId, to, amount, comment) {
@@ -406,7 +446,7 @@ class Utopia {
      * Method getEmailFolder returns to the Response block the list of identifications of uMail emails in the selected folder by using specified search filter. The method is called by using the FolderType parameters, which pass on the number of the folder from which the list should be taken (numbers of the folders 1-Inbox, 2-Drafts, 4-Sent, 8-Outbox, 16-Trash) and it is possible to specify the Filter parameter, which passes on the text value for the search of emails in uMail (has to contain the full or partial match with the Public Key, Nickname or the text of email).
      * @param {string} folderType 1 - Inbox | 2 - Drafts | 4 - Sent | 8 - Outbox | 16 - Trash
      * @param {string} filter Filter string
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     getEmailFolder(folderType, filter) {
@@ -419,7 +459,7 @@ class Utopia {
      * Method getEmails returns to the Response block the list of detailed of uMail emails in the selected folder by using specified search filter. The method is called by using the FolderType parameters, which pass on the number of the folder from which the list should be taken (numbers of the folders 1-Inbox, 2-Drafts, 4-Sent, 8-Outbox, 16-Trash) and it is possible to specify the Filter parameter, which passes on the text value for the search of emails in uMail (has to contain the full or partial match with the Public Key, Nickname or the text of email).
      * @param {string} folderType 1 - Inbox | 2 - Drafts | 4 - Sent | 8 - Outbox | 16 - Trash
      * @param {string} filter Filter string
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     getEmails(folderType, filter) {
@@ -431,7 +471,7 @@ class Utopia {
     /**
      * Method getEmailById returns the information based on the selected email in uMail. The method is called by using the Id parameter, which passes on the id of the email (id of the email can be found by using getEmailFolder method).
      * @param {string} id Email ID
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     getEmailById(id) {
@@ -442,7 +482,7 @@ class Utopia {
     /**
      * Method deleteEmail deletes email in uMail. First deletion will move email to the Trash, subsequent will remove from the database. The method is called by using the Id parameter which passes on the id of the email (id of the email can be found by using getEmailFolder method). In the Response field the status of completion of the operation is displayed.
      * @param {string} id Email ID
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     deleteEmail(id) {
@@ -454,7 +494,7 @@ class Utopia {
      * Method sendReplyEmailMessage creates response email in uMail for the incoming email and sends it to the contact with new message. The method is called by using the Id parameters, which pass on the id of the email (id of the email can be found by using getEmailFolder method) and Body, which passes on the text of the email in uMail. In the Response field the status of completion of the operation is displayed.
      * @param {string} id Email ID to reply
      * @param {string} body Reply body
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     sendReplyEmailMessage(id, body) {
@@ -468,7 +508,7 @@ class Utopia {
      * @param {string} id Email ID to forward
      * @param {string} to Contact's Public Key
      * @param {string} body Email body
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     sendForwardEmailMessage(id, to, body) {
@@ -480,7 +520,7 @@ class Utopia {
 
     /**
      * Method getFinanceSystemInformation returns in the Response field the information about Utopia financial system (information about fees and limits). Method is called without using any parameters.
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     getFinanceSystemInformation() {
@@ -489,7 +529,7 @@ class Utopia {
 
     /**
      * Method getBalance returns in the Response field the amount of cryptons on the primary balance, without considering the balance on cards. Method is called without using any parameters.
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     getBalance() {
@@ -505,7 +545,7 @@ class Utopia {
      * @param {string} batchId
      * @param {string} fromAmount
      * @param {string} toAmount
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     getFinanceHistory(filters, referenceNumber, toDate, fromDate, batchId, fromAmount, toAmount) {
@@ -525,7 +565,7 @@ class Utopia {
 
     /**
      * Method getCards returns in the Response field the current list of cards and their detailed information from uWallet. Method is called without using any parameters.
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     getCards() {
@@ -537,7 +577,7 @@ class Utopia {
      * @param {string} name Card name
      * @param {string} color RGB color in HEX
      * @param {string} numbers First 4 card symbols
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     addCard(name, color, numbers) {
@@ -550,7 +590,7 @@ class Utopia {
     /**
      * Method deleteCard deletes the existing card from uWallet. The amount from card will be returned to the main balance. The following parameter is specified: CardId, which passes on the card number ( CardId can be found by using the getCards method). In the Response field the status of completion of the operation is displayed.
      * @param {string} cardId Card ID
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     deleteCard(cardId) {
@@ -561,7 +601,7 @@ class Utopia {
     /**
      * Method enableMining turns on the mining in the Utopia client (mining is available only for x64 client). As a parameter the Status (true/false) is specified, which turns on or off the mining process. In the Response field the status of completion of the operation is displayed.
      * @param {string} enabled
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     enableMining(enabled) {
@@ -570,9 +610,19 @@ class Utopia {
     }
 
     /**
+     * Calling the enablePoS method turns on and off the PoS on the remaining irreducible account balance. As a parameter, one of the two statuses, true or false is selected. In the Response field the status of completion of turning on or off the operation is displayed.
+     * @param {boolean} enabled
+     * @returns {Promise<Object>} Promise
+     */
+
+    enablePoS(enabled) {
+        return this.sendRequest("enablePoS", { "enable": enabled });
+    }
+
+    /**
      * Calling the enableInterest method turns on and off the daily interest on the remaining irreducible account balance. As a parameter, one of the two statuses, true or false is selected. In the Response field the status of completion of turning on or off the operation is displayed.
      * @param {string} enabled
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     enableInterest(enabled) {
@@ -583,7 +633,7 @@ class Utopia {
     /**
      * Calling the enableHistoryMining method changes the option of the automatic reading of the mining history from the financial server. As a parameter of the method, the status of true or false is specified. In the Response field the status of completion of turning on or off the operation is displayed.
      * @param {string} enabled
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     enableHistoryMining(enabled) {
@@ -597,7 +647,7 @@ class Utopia {
      * 0 = STATE_EMPTY
      * 1 = STATE_IN_PROGRESS
      * 2 = STATE_RECEIVED_RESPONSE
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     statusHistoryMining() {
@@ -606,7 +656,7 @@ class Utopia {
 
     /**
      * Method getMiningBlocks returns to the Response field the information about the mining blocks for which the reward has been paid. The method is called without using any parameters. 
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     getMiningBlocks() {
@@ -615,7 +665,7 @@ class Utopia {
 
     /**
      * Method getMiningInfo returns statistics value of mining process.
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     getMiningInfo() {
@@ -624,7 +674,7 @@ class Utopia {
 
     /**
      * Method getVouchers returns to the Response field the information about existing vouchers as a list. The method is called without using any parameters. ).
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     getVouchers() {
@@ -634,7 +684,7 @@ class Utopia {
     /**
      * Method createVoucher with the mandatory parameter 'amount' creates new voucher for the selected amount in the list of own vouchers. The amount for the vouchers is taken from the main account balance. Amount, which transfers the amount of transfer (the number needs to be greater than 0 and contain no more than 9 character after coma); 
      * @param {string} amount Amount of Cryptons
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     createVoucher(amount) {
@@ -645,7 +695,7 @@ class Utopia {
     /**
      * Method useVoucher allows to use the selected voucher with adding its amount to your main account. The method is called with mandatory 'VoucherId' parameter in which the number of the voucher is specified.
      * @param {string} voucherId
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     useVoucher(voucherId) {
@@ -655,7 +705,7 @@ class Utopia {
     /**
      * Method deleteVoucher allows to remove your own voucher from the existing list with having the amount refunded back to your account. The method is called with mandatory 'VoucherId' parameter in which the number of the voucher is specified. In the Response field the status of completion of the operation is displayed.
      * @param {string} voucherId
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     deleteVoucher(voucherId) {
@@ -672,7 +722,7 @@ class Utopia {
      * @param {string} startDateTime
      * @param {string} endDateTime
      * @param {string} referenceNumber
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     getInvoices(cardId, invoiceId, pk, transactionId, status, startDateTime, endDateTime, referenceNumber) {
@@ -695,7 +745,7 @@ class Utopia {
     /**
      * Method getInvoiceByReferenceNumber allows to receive 'batchid' of the invoice using the ReferenceNumber. In the Response field, batchid is returned, which is considered a successful status for completion of the operation.
      * @param {string} referenceNumber
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     getInvoiceByReferenceNumber(referenceNumber) {
@@ -706,7 +756,7 @@ class Utopia {
     /**
      * Method getTransactionIdByReferenceNumber allows to receive 'batchid' of the transaction by using the ReferenceNumber. In the Response field, batchid is returned, which is considered a successful status for completion of the operation.
      * @param {string} referenceNumber
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     getTransactionIdByReferenceNumber(referenceNumber) {
@@ -719,7 +769,7 @@ class Utopia {
      * @param {string} cardId Card to send invoice to
      * @param {string} amount Amount of Cryptons to request
      * @param {string} comment Comment
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     sendInvoice(cardId, amount, comment) {
@@ -732,7 +782,7 @@ class Utopia {
     /**
      * Method acceptInvoice performs payment of the incoming invoice. The method is called with mandatory 'InvoiceId' parameter in which the ID of the invoice that needs to be rejected. For receiving ID of the needed invoice it is needed to call getInvoices for receiving the list of invoices with their detailed information. In response the acceptInvoice method returns in the Response block the results of completing this request. 
      * @param {string} invoiceId
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     acceptInvoice(invoiceId) {
@@ -743,7 +793,7 @@ class Utopia {
     /**
      * Method declineInvoice sends request for declining the payment for the incoming invoice. The method is called with mandatory the 'InvoiceId' parameter. Parameter InvoiceId contains the ID value for the invoice that needs to be declined. To get the ID of the required invoice it is mandatory to call the getInvoices method for receiving the list of invoices with their detailed information. In response the declineInvoice method returns in the Response block the results of completing this request. 
      * @param {string} invoiceId
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     declineInvoice(invoiceId) {
@@ -754,7 +804,7 @@ class Utopia {
     /**
      * Method cancelInvoice allows to cancel the already created invoice. The method is called with mandatory 'InvoiceId' parameter. Parameter InvoiceId contains the ID value for the invoice that needs to be declined. To get the ID of the required invoice it is mandatory to call the getInvoices method for receiving the list of invoices with their detailed information. In response the declineInvoice method returns in the Response block the results of completing this request. 
      * @param {string} invoiceId
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     cancelInvoice(invoiceId) {
@@ -766,7 +816,7 @@ class Utopia {
      * Method requestUnsTransfer allows to transfer the uNS record to contact. The method is called with mandatory 'Name' and 'Public Key' parameters. Name parameter is the name of the uNS record from the list of own uNS records. hexNewOwnerPk represents hash of the public portion of the key (as in some instances, key is now known, only hash is), to which the transfer is being made. In the Response field the status of completion of the operation is displayed. 
      * @param {string} name uNS name to transfer
      * @param {string} newOwnerPk New owner's Public Key
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     requestUnsTransfer(name, newOwnerPk) {
@@ -778,7 +828,7 @@ class Utopia {
     /**
      * Method acceptUnsTransfer allows to accept the incoming record of the uNS transfer. The method is called with the mandatory 'RequesId' parameter, which represents the id of the incoming uNS transfer. To receive the id of incoming transfers it is necessary to call the incomingUnsTransfer method, which returns the list of incoming uNS transfer. In the Response field the status of completion of the acceptUnsTransfer operation is displayed. 
      * @param {string} requestId uNS transfer request ID
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     acceptUnsTransfer(requestId) {
@@ -789,7 +839,7 @@ class Utopia {
     /**
      * Method declineUnsTransfer allows to decline the incoming record of the uNS transfer. The method is called with the mandatory 'RequesId' parameter, which represents the id of the incoming uNS transfer. To receive the id of incoming transfers it is necessary to call the incomingUnsTransfer method, which returns the list of incoming uNS transfer. In the Response field the status of completion of the declineUnsTransfer operation is displayed. 
      * @param {string} requestId uNS transfer request ID
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     declineUnsTransfer(requestId) {
@@ -799,7 +849,7 @@ class Utopia {
 
     /**
      * Method incomingUnsTransfer returns in the Response field the list of all incoming uNS transfer records with their detailed information. The method is called without using any parameters.
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     incomingUnsTransfer() {
@@ -808,7 +858,7 @@ class Utopia {
 
     /**
      * Method outgoingUnsTransfer returns in the Response field the list of all outgoing uNS transfer records with their detailed information. The method is called without using any parameters.
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     outgoingUnsTransfer() {
@@ -817,7 +867,7 @@ class Utopia {
 
     /**
      * Attention! The method storageWipe irrevocably removes all databases of the user. The method is called without using any parameters. In the Response field the status of completion of the operation is displayed.
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     storageWipe() {
@@ -828,7 +878,7 @@ class Utopia {
      * Method sendAuthorizationRequest allows to send the authorization request to add the user to the contact list. The method is called with mandatory use of 'Public Key' and 'Message' parameters. The Public Key parameter represents the Public Key of the person being added. The message parameter represents itself the text message with the request to be authorized. In the Response field the status of completion of sending such request is displayed.
      * @param {string} pk
      * @param {string} message 
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     sendAuthorizationRequest(pk, message) {
@@ -841,7 +891,7 @@ class Utopia {
      * Method acceptAuthorizationRequest accepts the incoming authorization request to add user to contacts. The method is called with mandatory use of 'Public Key' and 'Message' parameters. The Public Key parameter represents the Public Key of the person who send the authorization request. The message parameter represents itself the text message. In the Response field the status of completion of sending such request is displayed.
      * @param {string} pk
      * @param {string} message
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     acceptAuthorizationRequest(pk, message) {
@@ -854,7 +904,7 @@ class Utopia {
      * Method rejectAuthorizationRequest declines the incoming authorization request from user with Public key, which is specified as first parameter (Public Key) of the rejectAuthorizationRequest method. The second parameter of the method is Message row, that represents itself the response message the user who`s authorization is rejected. In the Response field the status of completion of such request is displayed.
      * @param {string} pk
      * @param {string} message
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     rejectAuthorizationRequest(pk, message) {
@@ -866,7 +916,7 @@ class Utopia {
     /**
      * Method deleteContact allows to perform the operation of removing selected user from the list of contacts. The method is called with mandatory use of 'Public Key' parameter that represents Public key of the to be removed contact. In the Response field the status of completion of such operation is displayed.
      * @param {string} pk
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     deleteContact(pk) {
@@ -878,7 +928,7 @@ class Utopia {
      * Method getChannels returns in the Response field the current list of all channels of Utopia ecosystem, it is possible to search by name of the channel (partial or complete matching). As a parameter, a Filter can be specified, which can be used for searching of the channel by name ( has to contain full or partial matching of the channel name).
      * @param {string} filter
      * @param {string} channelType
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     getChannels(filter, channelType) {
@@ -891,7 +941,7 @@ class Utopia {
      * Method sendChannelMessage creates and sends message in the selected channel (to send the message the user should have joined this channel and needs to have status 'online'). To enter the channel, use joinChannel method. As a parameter the method is using the ChannelId, which passes on the id of the channel in which the message is being sent (finding the id of the channel is possible by using the getChannels method) and Message, which contains the text of the message being sent. In the Response field the status of completion of the operation is displayed.
      * @param {string} channelId
      * @param {string} message
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     sendChannelMessage(channelId, message) {
@@ -905,13 +955,14 @@ class Utopia {
      * @param {string} channelId
      * @param {string} imageFilename Image filename
      * @param {string} base64Image (Optional) Use this if you have encoded Base64 image
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
+
     sendChannelPicture(channelId, imageFilename, base64Image) {
         channelId = channelId || "";
         base64Image = base64Image || "";
         imageFilename = imageFilename || "";
-        if (imageFilename && !base64Image) {
+        if (imageFilename && base64Image.length < 1) {
             if (fs.existsSync(imageFilename)) {
                 if (fs.lstatSync(imageFilename).isFile()) {
                     var base64Image = Buffer.from(fs.readFileSync(imageFilename)).toString("base64");
@@ -934,7 +985,7 @@ class Utopia {
      * Method joinChannel executes an entry into selected channel. The following parameters are specified: ChannelId, which passes on the id of the channel in which the message is being sent (finding the id of the channel is possible by using the getChannels method); when needed the parameter Password is specified, which passes on the password for entry into the channel (if left empty, no password is required). In the Response field the status of completion of the operation is displayed.
      * @param {string} channelId 
      * @param {string} password
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     joinChannel(channelId, password) {
@@ -946,7 +997,7 @@ class Utopia {
     /**
      * Method leaveChannel executes the exit from the selected channel. As a parameter the method takes the ChannelId, which passes on the id of the channel in which the message is being sent (finding the id of the channel is possible by using the getChannels method .
      * @param {string} channelId 
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     leaveChannel(channelId) {
@@ -957,7 +1008,7 @@ class Utopia {
     /**
      * Method getChannelMessages returns in the Response block the history of communication from selected channel. The method is called by using the channelid parameter, that passes on id of channel.
      * @param {string} channelId 
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     getChannelMessages(channelId) {
@@ -968,7 +1019,7 @@ class Utopia {
     /**
      * Method getChannelInfo returns in the Response field the information about the channel ( the response contains following parameters: HideInCommonList, description, geotag, hashtags, languages, readonly, title, type, private). As a parameter the method is using the ChannelId for which the user is trying to find more information (finding the id of the channel is possible by using the getChannels method).
      * @param {string} channelId 
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     getChannelInfo(channelId) {
@@ -979,7 +1030,7 @@ class Utopia {
     /**
      * Method getChannelModerators returns in the Response field the list of Public Keys of moderators. As a parameter the ChannelId is used (finding the id of the channel is possible by using the getChannels method).
      * @param {string} channelId 
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     getChannelModerators(channelId) {
@@ -990,7 +1041,7 @@ class Utopia {
     /**
      * Method getChannelContacts returns in the Response field the list of contacts on channel with details.
      * @param {string} channelId 
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     getChannelContacts(channelId) {
@@ -1002,7 +1053,7 @@ class Utopia {
      * Method getChannelModeratorRight returns in the Response field the list of moderator rights in the channel ( the response contains parameters as ban, delete, promote). As a parameter the method uses: ChannelId from which it is needed to get the list of moderator rights (finding the id of the channel is possible by using the getChannels method) and Public Key of the channel moderator (finding Public Key(pk) of the channel moderator is possible by using the getChannelModerators method). 
      * @param {string} channelId 
      * @param {string} moderator
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     getChannelModeratorRight(channelId, moderator) {
@@ -1022,7 +1073,7 @@ class Utopia {
      * @param {string} geoTag
      * @param {string} base64AvatarImage Channel avatar image
      * @param {string} hideInUI Don't show in channel manager
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     createChannel(channelName, description, readOnly, password, language, hashtags, geoTag, base64AvatarImage, hideInUI) {
@@ -1055,7 +1106,7 @@ class Utopia {
      * @param {string} geoTag
      * @param {string} base64AvatarImage Channel avatar image
      * @param {string} hideInUI Don't show in channel manager
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     modifyChannel(channelId, description, readOnly, language, hashtags, geoTag, base64AvatarImage, hideInUI) {
@@ -1079,7 +1130,7 @@ class Utopia {
     /**
      * Method deleteChannel deletes uchan record.
      * @param {string} channelId
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     deleteChannel(channelId) {
@@ -1089,11 +1140,32 @@ class Utopia {
 
     /**
      * Method getChannelSystemInfo returns system properties of channels.
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     getChannelSystemInfo() {
         return this.sendRequest("getChannelSystemInfo")
+    }
+
+    /**
+     * Method getChannelBannedConacts returns list banned contacts on corresponded channel with id channelid.
+     * @param {string} channelId Channel ID
+     * @returns {Promise<Object>} Promise
+    */
+
+    getChannelBannedConacts(channelId) {
+        return this.sendRequest("getChannelBannedConacts", {"channelid": channelId});
+    }
+
+    /**
+     * Method applyChannelBannedConacts apply and send new banned list for corresponded channel with id channelid.
+     * @param {string} channelId Channel ID
+     * @param {string} newList New banned list
+     * @returns {Promise<Object>} Promise
+    */
+
+    applyChannelBannedConacts(channelId, newList) {
+        return this.sendRequest("applyChannelBannedConacts", {"channelid": channelId, "newList": newList});
     }
 
     /**
@@ -1102,7 +1174,7 @@ class Utopia {
      * @param {string} nick uNS name
      * @param {string} valid uNS name expiration date
      * @param {string} isPrimary If you want to make uNS your primary name
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     unsCreateRecordRequest(nick, valid, isPrimary, channelId) {
@@ -1122,7 +1194,7 @@ class Utopia {
      * @param {string} nick uNS name
      * @param {string} valid uNS name expiration date
      * @param {string} isPrimary If you want to make uNS your primary name
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     unsModifyRecordRequest(nick, valid, isPrimary, channelId) {
@@ -1139,7 +1211,7 @@ class Utopia {
     /**
      * Method unsDeleteRecordRequest sends request for deletion of uNS name of the current user. As a parameter the uNS name is used ( uNS name can be found by using the unsRegisteredNames method). In the Response field the status of completion of the operation is displayed.
      * @param {string} nick uNS name
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     unsDeleteRecordRequest(nick) {
@@ -1150,7 +1222,7 @@ class Utopia {
     /**
      * Method unsSearchByPk returns in the Response field the list of all uNS names with selected 'Filter' parameter (contains full or partial matching with the searched uNS name. The name can contain symbols (A-Z), numbers (0-9), dash symbol (-) and period (.) and can be no greater than 32 symbols in length.).
      * @param {string} filter
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     unsSearchByPk(filter) {
@@ -1161,7 +1233,7 @@ class Utopia {
     /**
      * Method unsSearchByNick returns the list of uNS names by partial or full matching with selected 'Filter' parameter (contains full or partial matching with the searched uNS name. The name can contain symbols (A-Z), numbers (0-9), dash symbol (-) and period (.) and can be no greater than 32 symbols in length.).
      * @param {string} filter
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     unsSearchByNick(filter) {
@@ -1171,7 +1243,7 @@ class Utopia {
 
     /**
      * Method getUnsSyncInfo returns statistics value of sync process.
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     getUnsSyncInfo() {
@@ -1180,7 +1252,7 @@ class Utopia {
 
     /**
      * Method unsRegisteredNames returns in the Response field the list of all registered uNS for current user. The method is called without using any parameters. 
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     unsRegisteredNames() {
@@ -1191,7 +1263,7 @@ class Utopia {
      * Method summaryUnsRegisteredNames returns the list count of uNS names by each day
      * @param {string} dateFrom
      * @param {string} dateTo
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     summaryUnsRegisteredNames(dateFrom, dateTo) {
@@ -1202,7 +1274,7 @@ class Utopia {
 
     /**
      * Method clearTrayNotifications allows to drop all existing notifications in the tray of the operating system. The method is called without using any parameters. In the Response field the status of completion of the operation is displayed.
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     clearTrayNotifications() {
@@ -1211,7 +1283,7 @@ class Utopia {
 
     /**
      * Method getNetworkConnections returns in Response block detailed information about all current network connections. The method is called without using any parameters. 
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     getNetworkConnections() {
@@ -1220,7 +1292,7 @@ class Utopia {
 
     /**
      * Method getProxyMappings returns in Response block the list of all configured proxy mappings. The method is called without using any parameters. 
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     getProxyMappings() {
@@ -1234,7 +1306,7 @@ class Utopia {
      * @param {string} dstHost uNS name
      * @param {string} dstPort 80
      * @param {string} enabled Enable after creation
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     createProxyMapping(srcHost, srcPort, dstHost, dstPort, enabled) {
@@ -1252,7 +1324,7 @@ class Utopia {
     /**
      * Method enableProxyMapping allows to turn on the ability to use the connection with specified 'MappingId' as a parameter when calling this method. To receive the 'MappingId' of the needed connection it is necessary to call the getProxyMappings method. In the Response field the status of completion of operation of turning on the connection is displayed.
      * @param {string} mappingId 
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     enableProxyMapping(mappingId) {
@@ -1263,7 +1335,7 @@ class Utopia {
     /**
      * Method disableProxyMapping allows to turn off the ability to use the connection with specified 'MappingId' as a parameter when calling this method. To receive the 'MappingId' of the needed connection it is necessary to call the getProxyMappings method. In the Response field the status of completion of operation of turning off the connection is displayed.
      * @param {string} mappingId 
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     disableProxyMapping(mappingId) {
@@ -1274,7 +1346,7 @@ class Utopia {
     /**
      * Method removeProxyMapping allows to remove the selected configured of proxy mappings. The method is called by using the MapingId parameter, which represents the id of the configured proxy connection. In the Response field the status of completion of operation of removing the mapping is displayed.
      * @param {string} mappingId 
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     removeProxyMapping(mappingId) {
@@ -1284,7 +1356,7 @@ class Utopia {
 
     /**
      * Method lowTrafficMode returns in Response block the status of low Traffic mode. The method is called without using any parameters. 
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     lowTrafficMode() {
@@ -1294,7 +1366,7 @@ class Utopia {
     /**
      * Method setLowTrafficMode allows to turn on or off the low Traffic mode. The method is called by using the enabled parameter, which represents itself a status of true or false that is being set for this particular mode. 
      * @param {string} enabled
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     setLowTrafficMode(enabled) {
@@ -1305,7 +1377,7 @@ class Utopia {
     /**
      * Method getWhoIsInfo returns in Response block the detailed information about selected user. As a parameter of the method, the Public key of the particular user can be used, or his nickname, if such contact was added to the contact list. 
      * @param {string} nameOrPk uNS name or Public Key to lookup
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     getWhoIsInfo(nameOrPk) {
@@ -1314,8 +1386,26 @@ class Utopia {
     }
 
     /**
+     * Method requestTreasuryPoSRates makes request to obtain treasury PoS rate data
+     * @returns {Promise<Object>} Promise
+    */
+
+    requestTreasuryPoSRates() {
+        return this.sendRequest("requestTreasuryPoSRates");
+    }
+
+    /**
+     * Method getTreasuryPoSRates returns in Response block the detailed information about treasury PoS rate
+     * @returns {Promise<Object>} Promise
+    */
+
+    getTreasuryPoSRates() {
+        return this.sendRequest("getTreasuryPoSRates");
+    }
+
+    /**
      * Method requestTreasuryInterestRates makes request to obtain treasury interest rate data
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     requestTreasuryInterestRates() {
@@ -1324,7 +1414,7 @@ class Utopia {
 
     /**
      * Method getTreasuryInterestRates returns in Response block the detailed information about threasury interest rate
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     getTreasuryInterestRates() {
@@ -1333,7 +1423,7 @@ class Utopia {
 
     /**
      * Method requestTreasuryTransactionVolumes makes request to obtain treasury transaction volume data
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     requestTreasuryTransactionVolumes() {
@@ -1342,7 +1432,7 @@ class Utopia {
 
     /**
      * Method getTreasuryTransactionVolumes returns in Response block the detailed information about threasury transaction volume
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     getTreasuryTransactionVolumes() {
@@ -1355,7 +1445,7 @@ class Utopia {
      * @param {string} sizeImage Image size in pixels
      * @param {string} coder BASE64 | HEX
      * @param {string} format PNG | JPG
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     ucodeEncode(hexCode, sizeImage, coder, format) {
@@ -1372,7 +1462,7 @@ class Utopia {
     /**
      * Method ucodeDecode returns hex public key from image in base64 format.
      * @param {string} base64Image Image in Base64 format
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     ucodeDecode(base64Image) {
@@ -1381,7 +1471,7 @@ class Utopia {
 
     /**
      * Method getWebSocketState returns WSS Notifications state, 0 - disabled or active listening port number.
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     getWebSocketState() {
@@ -1390,11 +1480,29 @@ class Utopia {
 
     /**
      * Method setWebSocketState set WSS Notification state.
-     * @returns {Promise<string>} Promise
+     * @returns {Promise<Object>} Promise
      */
 
     setWebSocketState(enabled, port) {
         return this.sendRequest("setWebSocketState", { "enabled": enabled, "port": port })
+    }
+
+    /**
+     * Method getTransfersFromManager returns list of file transfer.
+     * @returns {Promise<Object>} Promise
+    */
+
+    getTransfersFromManager() {
+        return this.sendRequest("getTransfersFromManager");
+    }
+
+    /**
+     * Method getFilesFromManager returns list of files.
+     * @returns {Promise<Object>} Promise
+    */
+
+    getFilesFromManager() {
+        return this.sendRequest("getFilesFromManager");
     }
 }
 
