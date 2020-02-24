@@ -1,28 +1,34 @@
 const request = require("request");
 const ws = require("ws");
 const fs = require("fs");
+const EM = require("events");
 
 class Utopia {
+
+    //#region Internal methods
 
     /**
      * Utopia API for Node.js
      * @param {string} token Your API token
+     * @param {bool} websocketenabled Enable websocket?
      * @param {string} apiHost IP with API
      * @param {string} apiPort Port with API
      * @param {string} wsPort WebSocket API port
      */
 
-    constructor(token, apiHost, apiPort, wsPort) {
+    constructor(token, websocketenabled, apiHost, apiPort, wsPort) {
         this.listenedEvents = {
             "newOutgoingChannelMessage": [],
             "newChannelMessage": [],
             "newOutgoingInstantMessage": [],
             "newInstantMessage": [],
+            "message": [],
             "channelJoinChanged": [],
             "newPaymentTransfer": [],
             "newEmail": [],
             "any": []
         };
+        this.listener = new EM();
         this.token = token || "no_token";
         if (this.token == "no_token") {
             throw new Error("token is not valid");
@@ -31,61 +37,80 @@ class Utopia {
             throw new Error("token is not valid");
         }
         this.token = token.toUpperCase();
+        this.websocketenabled = websocketenabled || false;
         this.apiHost = apiHost || "127.0.0.1";
         this.apiPort = apiPort || "20000";
-        this.webSocketUnavailable = false;
-        this.getWebSocketState().then((data) => {
-            if (data.result !== 0) {
-                this.wsPort = data.result.toString();
-                this.webSocketUnavailable = false;
-                this.webSocket = new ws(`ws://${this.apiHost}:${this.wsPort}/UtopiaWSS?token=${this.token}`);
-                this.webSocket.on("message", (data) => {
-                    var parsed = JSON.parse(data);
-                    for (var cb in this.listenedEvents[parsed.type]) {
-                        this.listenedEvents[parsed.type][cb](parsed);
-                    }
-                    for (var cb in this.listenedEvents["any"]) {
-                        this.listenedEvents[parsed.type][cb](parsed);
-                    }
-                });
-            } else {
-                this.wsPort = wsPort || "20001";
+        this.webSocketUnavailable = true;
+        if (websocketenabled) {
+            this.getWebSocketState().then((data) => {
+                if (data.result !== 0) {
+                    this.wsPort = data.result.toString();
+                    this.webSocketUnavailable = false;
+                    this.webSocket = new ws(`ws://${this.apiHost}:${this.wsPort}/UtopiaWSS?token=${this.token}`);
+                    this.webSocket.on("message", (data) => {
+                        var parsed = JSON.parse(data);
+                        this.listener.emit(parsed.type);
+                        this.listener.emit("any");
+                        if (parsed.type.match(/outgoing/i)) {
+                            this.listener.emit("outgoingMessage");
+                        }
+                        if (parsed.type.match(/incoming/i)) {
+                            this.listener.emit("incomingMessage");
+                        }
+                        if (parsed.type.match(/message/i)) {
+                            this.listener.emit("message");
+                        }
+                    });
+                } else {
+                    this.wsPort = wsPort || "20001";
+                    this.setWebSocketState(true, this.wsPort).then((data) => {
+                        this.webSocketUnavailable = false;
+                        this.webSocket = new ws(`ws://${this.apiHost}:${this.wsPort}/UtopiaWSS?token=${this.token}`);
+                        this.webSocket.on("message", (data) => {
+                            var parsed = JSON.parse(data);
+                            this.listener.emit(parsed.type);
+                            this.listener.emit("any");
+                            if (parsed.type.match(/outgoing/i)) {
+                                this.listener.emit("outgoingMessage");
+                            }
+                            if (parsed.type.match(/incoming/i)) {
+                                this.listener.emit("incomingMessage");
+                            }
+                            if (parsed.type.match(/message/i)) {
+                                this.listener.emit("message");
+                            }
+                        });
+                    }, (error) => {
+                        console.warn("Couldn't set Websocket state, listener is disabled");
+                        this.webSocketUnavailable = true;
+                    });
+                }
+            }, (error) => {
+                console.warn("Couldn't get Websocket state, activating anyway");
+                this.wsPort = wsPort || 20001;
                 this.setWebSocketState(true, this.wsPort).then((data) => {
                     this.webSocketUnavailable = false;
                     this.webSocket = new ws(`ws://${this.apiHost}:${this.wsPort}/UtopiaWSS?token=${this.token}`);
                     this.webSocket.on("message", (data) => {
                         var parsed = JSON.parse(data);
-                        for (var cb in this.listenedEvents[parsed.type]) {
-                            this.listenedEvents[parsed.type][cb](parsed);
+                        this.listener.emit(parsed.type);
+                        this.listener.emit("any");
+                        if (parsed.type.match(/outgoing/i)) {
+                            this.listener.emit("outgoingMessage");
                         }
-                        for (var cb in this.listenedEvents["any"]) {
-                            this.listenedEvents[parsed.type][cb](parsed);
+                        if (parsed.type.match(/incoming/i)) {
+                            this.listener.emit("incomingMessage");
+                        }
+                        if (parsed.type.match(/message/i)) {
+                            this.listener.emit("message");
                         }
                     });
                 }, (error) => {
-                    console.warn("Couldn't set Websocket state, .on is disabled");
+                    console.warn("Couldn't set Websocket state, listener is disabled");
                     this.webSocketUnavailable = true;
                 });
-            }
-        }, (error) => {
-            console.warn("Couldn't get Websocket state, activating anyway");
-            this.wsPort = wsPort || 20001;
-            this.setWebSocketState(true, this.wsPort).then((data) => {
-                this.webSocketUnavailable = false;
-                this.webSocket = new ws(`ws://${this.apiHost}:${this.wsPort}/UtopiaWSS?token=${this.token}`);
-                this.webSocket.on("message", (data) => {
-                    for (var cb in this.listenedEvents[parsed.type]) {
-                        this.listenedEvents[parsed.type][cb](parsed);
-                    }
-                    for (var cb in this.listenedEvents["any"]) {
-                        this.listenedEvents[parsed.type][cb](parsed);
-                    }
-                });
-            }, (error) => {
-                console.warn("Couldn't set Websocket state, .on is disabled");
-                this.webSocketUnavailable = true;
             });
-        });
+        }
     }
 
     /**
@@ -122,14 +147,40 @@ class Utopia {
 
     /**
      * Event listener
-     * @param {"newOutgoingChannelMessage"|"newChannelMessage"|"newOutgoingInstantMessage"|"newInstantMessage"|"channelJoinChanged"|"newPaymentTransfer"|"newEmail"|"any"} event Event type
+     * @param {"newOutgoingChannelMessage"|"newChannelMessage"|"newOutgoingInstantMessage"|"newInstantMessage"|"message"|"channelJoinChanged"|"newPaymentTransfer"|"newEmail"|"any"} event Event type
      * @param {function} callback 
      */
 
     on(event, callback) {
         if (this.webSocketUnavailable) { return; }
-        this.listenedEvents[event] ? this.listenedEvents[event].push(callback) : false;
+        this.listenedEvents[event] ? this.listener.on(event, callback) : false;
     }
+
+    /**
+     * Event listener
+     * @param {"newOutgoingChannelMessage"|"newChannelMessage"|"newOutgoingInstantMessage"|"newInstantMessage"|"message"|"channelJoinChanged"|"newPaymentTransfer"|"newEmail"|"any"} event Event type
+     * @param {function} callback 
+     */
+
+    once(event, callback) {
+        if (this.webSocketUnavailable) { return; }
+        this.listenedEvents[event] ? this.listener.once(event, callback) : false;
+    }
+
+    /**
+     * Event listener
+     * @param {"newOutgoingChannelMessage"|"newChannelMessage"|"newOutgoingInstantMessage"|"newInstantMessage"|"message"|"channelJoinChanged"|"newPaymentTransfer"|"newEmail"|"any"} event Event type
+     * @param {function} callback 
+     */
+
+    removeListener(event, callback) {
+        if (this.webSocketUnavailable) { return; }
+        this.listenedEvents[event] ? this.listener.removeListener(event, callback) : false;
+    }
+
+    //#endregion
+
+    // #region System methods
 
     /**
      * Method getSystemInfo returns information about current packaging version of the Utopia application in the Response block. The method is called without using any parameters.
@@ -139,6 +190,105 @@ class Utopia {
     getSystemInfo() {
         return this.sendRequest();
     }
+
+    /**
+     * Attention! The method storageWipe irrevocably removes all databases of the user. The method is called without using any parameters. In the Response field the status of completion of the operation is displayed.
+     * @returns {Promise<Object>} Promise
+     */
+
+    storageWipe() {
+        return this.sendRequest("storageWipe");
+    }
+
+    /**
+     * Method clearTrayNotifications allows to drop all existing notifications in the tray of the operating system. The method is called without using any parameters. In the Response field the status of completion of the operation is displayed.
+     * @returns {Promise<Object>} Promise
+     */
+
+    clearTrayNotifications() {
+        return this.sendRequest("clearTrayNotifications");
+    }
+
+    /**
+     * Method getNetworkConnections returns in Response block detailed information about all current network connections. The method is called without using any parameters. 
+     * @returns {Promise<Object>} Promise
+     */
+
+    getNetworkConnections() {
+        return this.sendRequest("getNetworkConnections");
+    }
+    
+    /**
+     * Method lowTrafficMode returns in Response block the status of low Traffic mode. The method is called without using any parameters. 
+     * @returns {Promise<Object>} Promise
+     */
+
+    lowTrafficMode() {
+        return this.sendRequest("lowTrafficMode");
+    }
+
+    /**
+     * Method setLowTrafficMode allows to turn on or off the low Traffic mode. The method is called by using the enabled parameter, which represents itself a status of true or false that is being set for this particular mode. 
+     * @param {string} enabled
+     * @returns {Promise<Object>} Promise
+     */
+
+    setLowTrafficMode(enabled) {
+        enabled = enabled || "";
+        return this.sendRequest("setLowTrafficMode", { "enavled": enabled });
+    }
+
+    /**
+     * Method getWebSocketState returns WS Notifications state, 0 - disabled or active listening port number.
+     * @returns {Promise<Object>} Promise
+     */
+
+    getWebSocketState() {
+        return this.sendRequest("getWebSocketState");
+    }
+
+    /**
+     * Method setWebSocketState sets WS Notification state.
+     * @returns {Promise<Object>} Promise
+     */
+
+    setWebSocketState(enabled, port) {
+        return this.sendRequest("setWebSocketState", { "enabled": enabled, "port": port });
+    }
+    
+    /**
+     * Method ucodeEncode returns image of ucode in sizeImage with public key from hexCode
+     * @param {string} hexCode Public Key
+     * @param {string} sizeImage Image size in pixels
+     * @param {string} coder BASE64 | HEX
+     * @param {string} format PNG | JPG
+     * @returns {Promise<Object>} Promise
+     */
+
+    ucodeEncode(hexCode, sizeImage, coder, format) {
+        hexCode = hexCode || "";
+        sizeImage = sizeImage || "256";
+        coder = coder || "BASE64";
+        format = format || "PNG";
+        return this.sendRequest("ucodeEncode", {
+            "hex_code": hexCode, "size_image": sizeImage, "coder": coder,
+            "format": format
+        });
+    }
+
+    /**
+     * Method ucodeDecode returns hex public key from image in base64 format.
+     * @param {string} base64Image Image in Base64 format
+     * @returns {Promise<Object>} Promise
+     */
+
+    ucodeDecode(base64Image) {
+        return this.sendRequest("ucodeDecode", { "base64_image": base64Image });
+    }
+
+    // #endregion
+
+    // #region Self methods
 
     /**
      * Method getProfileStatus returns the profile status.
@@ -169,6 +319,10 @@ class Utopia {
         return this.sendRequest("getOwnContact");
     }
 
+    // #endregion
+
+    // #region Contact Groups methods
+
     /**
      * Method getContactGroups returns to the Response field the list group names.
      * @returns {Promise<Object>} Promise
@@ -186,60 +340,6 @@ class Utopia {
 
     getContactsByGroup(groupName) {
         return this.sendRequest("getContactsByGroup", { "groupName": groupName });
-    }
-
-    /**
-     * Method getContacts returns to the Response field the list of contacts, it is possible to search by full or partial matching of the Public Key and Nickname. As a parameter it is possible to specify Filter that transfers the text line to search for contacts ( has to contain full or partial matching with Public Key or Nickname of the searched contact).The Filter "#owner#" will return information about yourself.
-     * @param {string} filter String, filtering result
-     * @returns {Promise<Object>} Promise
-     */
-
-    getContacts(filter) {
-        filter = filter || "";
-        return this.sendRequest("getContacts", { "filter": filter });
-    }
-
-    /**
-     * Method getContactAvatar returns to the Response field the avatar of the selected user in the base64 or hex format.As a parameter the method uses Public Key of the contact.Format is JPG / PNG
-     * @param {string} pk Contact's Public key
-     * @param {string} coder BASE64/HEX
-     * @param {string} format PNG/JPG
-     * @returns {Promise<Object>} Promise
-     */
-
-    getContactAvatar(pk, coder, format) {
-        pk = pk || "";
-        coder = coder || "BASE64";
-        format = format || "PNG";
-        return this.sendRequest("getContactAvatar", { "pk": pk, "coder": coder, "format": format });
-    }
-
-    /** 
-     * Method getChannelAvatar returns to the Response field the avatar of the selected channel in the base64 or hex format.
-     * @param {string} channelId Channel ID
-     * @param {string} coder BASE64/HEX
-     * @param {string} format PNG/JPG
-     * @returns {Promise<Object>} Promise
-    */
-
-    getChannelAvatar(channelId, coder, format) {
-        channelId = channelId || "UTOPIA";
-        coder = coder || "BASE64";
-        format = format || "PNG";
-        return this.sendRequest("getChannelAvatar", { "channelid": channelId, "coder": coder, "format": format });
-    }
-
-    /**
-     * Method setContactGroup creates group or transfers selected contact into the group in the contact list. The method is called by using the Public Key parameters, which pass the Public Key of the contact (Public Key can be recognized by using the getContacts method) and Group Name, which passes the group name for creation or transfer (up to 32 symbols). In the Response field the status of completion of the operation is displayed.
-     * @param {string} pk Contact's Public Key
-     * @param {string} groupName Name of group, in which you would like to move contact
-     * @returns {Promise<Object>} Promise
-     */
-
-    setContactGroup(pk, groupName) {
-        pk = pk || "";
-        groupName = groupName || "Freedom Society";
-        return this.sendRequest("setContactGroup", { "contactPublicKey": pk, "groupName": groupName });
     }
 
     /**
@@ -261,6 +361,60 @@ class Utopia {
 
     deleteContactGroup(groupName) {
         return this.sendRequest("deleteContactGroup", { "groupName": groupName });
+    }
+
+    // #endregion
+
+    // #region Contacts methods
+
+    /**
+     * Method getContacts returns to the Response field the list of contacts, it is possible to search by full or partial matching of the Public Key and Nickname. As a parameter it is possible to specify Filter that transfers the text line to search for contacts ( has to contain full or partial matching with Public Key or Nickname of the searched contact).The Filter "#owner#" will return information about yourself.
+     * @param {string} filter String, filtering result
+     * @returns {Promise<Object>} Promise
+     */
+
+    getContacts(filter) {
+        filter = filter || "";
+        return this.sendRequest("getContacts", { "filter": filter });
+    }
+
+    /**
+     * Method deleteContact allows to perform the operation of removing selected user from the list of contacts. The method is called with mandatory use of 'Public Key' parameter that represents Public key of the to be removed contact. In the Response field the status of completion of such operation is displayed.
+     * @param {string} pk
+     * @returns {Promise<Object>} Promise
+     */
+
+    deleteContact(pk) {
+        pk = pk || "";
+        return this.sendRequest("deleteContact", { "pk": pk });
+    }
+
+    /**
+     * Method getContactAvatar returns to the Response field the avatar of the selected user in the base64 or hex format.As a parameter the method uses Public Key of the contact.Format is JPG / PNG
+     * @param {string} pk Contact's Public key
+     * @param {string} coder BASE64/HEX
+     * @param {string} format PNG/JPG
+     * @returns {Promise<Object>} Promise
+     */
+
+    getContactAvatar(pk, coder, format) {
+        pk = pk || "";
+        coder = coder || "BASE64";
+        format = format || "PNG";
+        return this.sendRequest("getContactAvatar", { "pk": pk, "coder": coder, "format": format });
+    }
+
+    /**
+     * Method setContactGroup creates group or transfers selected contact into the group in the contact list. The method is called by using the Public Key parameters, which pass the Public Key of the contact (Public Key can be recognized by using the getContacts method) and Group Name, which passes the group name for creation or transfer (up to 32 symbols). In the Response field the status of completion of the operation is displayed.
+     * @param {string} pk Contact's Public Key
+     * @param {string} groupName Name of group, in which you would like to move contact
+     * @returns {Promise<Object>} Promise
+     */
+
+    setContactGroup(pk, groupName) {
+        pk = pk || "";
+        groupName = groupName || "Freedom Society";
+        return this.sendRequest("setContactGroup", { "contactPublicKey": pk, "groupName": groupName });
     }
 
     /**
@@ -287,6 +441,19 @@ class Utopia {
         to = to || "";
         text = text || "";
         return this.sendRequest("sendInstantMessage", { "to": to, "text": text });
+    }
+
+    /**
+     * Method sendInstantFile sends personal message with file (IM) to the selected contact from the contact list. The method is called by using the To parameter, that passes on the Public Key or Nickname to whom the message would be sent (Public Key can be recognized by using the getContacts method) and Text, which contains the text of the message. In the Response field the status of completion of the operation is displayed.
+     * @param {string} to Contact's Public Key
+     * @param {string} fileID Message
+     * @returns {Promise<Object>} Promise
+     */
+
+    sendInstantFile(to, fileID) {
+        to = to || "";
+        fileID = fileID || "";
+        return this.sendRequest("sendFileByMessage", { "to": to, "fileId": fileID });
     }
 
     /**
@@ -317,41 +484,6 @@ class Utopia {
         collection = collection || "42";
         name = name || "42";
         return this.sendRequest("sendInstantSticker", { "to": to, "collection": collection, "name": name });
-    }
-
-    /**
-     * Method getStickerCollections returns collection names of stickers.
-     * @returns {Promise<Object>} Promise
-     */
-
-    getStickerCollections() {
-        return this.sendRequest("getStickerCollections");
-    }
-
-    /**
-     * Method getStickerNamesByCollection returns available names from corresponded collection.
-     * @param {string} collectionName Sticker Collection ID
-     * @returns {Promise<Object>} Promise
-     */
-
-    getStickerNamesByCollection(collectionName) {
-        collectionName = collectionName || "42";
-        return this.sendRequest("getStickerNamesByCollection", { "collection_name": collectionName });
-    }
-
-    /**
-     * Method getImageSticker returns image by sticker name from corresponded collection in coder that can be equal "BASE64".
-     * @param {string} collectionName Sticker Collection ID
-     * @param {string} stickerName Sticker ID
-     * @param {string} coder BASE64
-     * @returns {Promise<Object>} Promise
-     */
-
-    getImageSticker(collectionName, stickerName, coder) {
-        collectionName = collectionName || "42";
-        stickerName = stickerName || "42";
-        coder = coder || "BASE64";
-        return this.sendRequest("getImageSticker", { "collection_name": collectionName, "sticker_name": stickerName, "coder": coder });
     }
 
     /**
@@ -394,19 +526,101 @@ class Utopia {
 
     removeInstantMessages(pk) {
         pk = pk || "";
-        return this.sendRequest("removeInstantMessages", { "hex_contact_public_key": pk })
+        return this.sendRequest("removeInstantMessages", { "hex_contact_public_key": pk });
     }
 
     /**
-     * Method getContactMessages returns in the Response block the history of communication from personal chat with selected contact. The method is called by using the Public Key parameter, that passes on the Public Key of the contact (Public Key can be recognized by using the getContacts method)
+     * Method getContactMessages returns in the Response block the history of communication from personal chat with selected contact. The method is called by using the Public Key parameter, that passes on the Public Key of the contact (Public Key can be recognized by using the getContacts method);
      * @param {string} pk Contact's Public Key
      * @returns {Promise<Object>} Promise
      */
 
     getContactMessages(pk) {
         pk = pk || "";
-        return this.sendRequest("getContactMessages", { "pk": pk })
+        return this.sendRequest("getContactMessages", { "pk": pk });
     }
+
+    /**
+     * Method sendAuthorizationRequest allows to send the authorization request to add the user to the contact list. The method is called with mandatory use of 'Public Key' and 'Message' parameters. The Public Key parameter represents the Public Key of the person being added. The message parameter represents itself the text message with the request to be authorized. In the Response field the status of completion of sending such request is displayed.
+     * @param {string} pk
+     * @param {string} message 
+     * @returns {Promise<Object>} Promise
+     */
+
+    sendAuthorizationRequest(pk, message) {
+        pk = pk || "";
+        message = message || "";
+        return this.sendRequest("sendAuthorizationRequest", { "pk": pk, "message": message });
+    }
+
+    /**
+     * Method acceptAuthorizationRequest accepts the incoming authorization request to add user to contacts. The method is called with mandatory use of 'Public Key' and 'Message' parameters. The Public Key parameter represents the Public Key of the person who send the authorization request. The message parameter represents itself the text message. In the Response field the status of completion of sending such request is displayed.
+     * @param {string} pk
+     * @param {string} message
+     * @returns {Promise<Object>} Promise
+     */
+
+    acceptAuthorizationRequest(pk, message) {
+        pk = pk || "";
+        message = message || "";
+        return this.sendRequest("acceptAuthorizationRequest", { "pk": pk, "message": message });
+    }
+
+    /**
+     * Method rejectAuthorizationRequest declines the incoming authorization request from user with Public key, which is specified as first parameter (Public Key) of the rejectAuthorizationRequest method. The second parameter of the method is Message row, that represents itself the response message the user who`s authorization is rejected. In the Response field the status of completion of such request is displayed.
+     * @param {string} pk
+     * @param {string} message
+     * @returns {Promise<Object>} Promise
+     */
+
+    rejectAuthorizationRequest(pk, message) {
+        pk = pk || "";
+        message = message || "";
+        return this.sendRequest("rejectAuthorizationRequest", { "pk": pk, "message": message });
+    }
+
+    // #endregion
+
+    // #region Stickers methods
+
+    /**
+     * Method getStickerCollections returns collection names of stickers.
+     * @returns {Promise<Object>} Promise
+     */
+
+    getStickerCollections() {
+        return this.sendRequest("getStickerCollections");
+    }
+
+    /**
+     * Method getStickerNamesByCollection returns available names from corresponded collection.
+     * @param {string} collectionName Sticker Collection ID
+     * @returns {Promise<Object>} Promise
+     */
+
+    getStickerNamesByCollection(collectionName) {
+        collectionName = collectionName || "42";
+        return this.sendRequest("getStickerNamesByCollection", { "collection_name": collectionName });
+    }
+
+    /**
+     * Method getImageSticker returns image by sticker name from corresponded collection in coder that can be equal "BASE64".
+     * @param {string} collectionName Sticker Collection ID
+     * @param {string} stickerName Sticker ID
+     * @param {string} coder BASE64
+     * @returns {Promise<Object>} Promise
+     */
+
+    getImageSticker(collectionName, stickerName, coder) {
+        collectionName = collectionName || "42";
+        stickerName = stickerName || "42";
+        coder = coder || "BASE64";
+        return this.sendRequest("getImageSticker", { "collection_name": collectionName, "sticker_name": stickerName, "coder": coder });
+    }
+
+    // #endregion
+
+    // #region Mail methods
 
     /**
      * Method sendEmailMessage sends uMail to the selected contact in the Utopia network. The method is called by using the To parameter, which passes on the Public Key or Nickname to which the uMail would be sent (Public Key can be recognized by using the getContacts method); Subject, that determines the subject of the email; and Body, which passes on the text in the body of the uMail. In the Response field the status of completion of the operation is displayed.
@@ -420,7 +634,105 @@ class Utopia {
         to = to || "";
         subject = subject || "No subject";
         body = body || "";
-        return this.sendRequest("sendEmailMessage", { "to": to, "subject": subject, "body": body })
+        return this.sendRequest("sendEmailMessage", { "to": to, "subject": subject, "body": body });
+    }
+
+    /**
+     * Method getEmailFolder returns to the Response block the list of identifications of uMail emails in the selected folder by using specified search filter. The method is called by using the FolderType parameters, which pass on the number of the folder from which the list should be taken (numbers of the folders 1-Inbox, 2-Drafts, 4-Sent, 8-Outbox, 16-Trash) and it is possible to specify the Filter parameter, which passes on the text value for the search of emails in uMail (has to contain the full or partial match with the Public Key, Nickname or the text of email).
+     * @param {string} folderType 1 - Inbox | 2 - Drafts | 4 - Sent | 8 - Outbox | 16 - Trash
+     * @param {string} filter Filter string
+     * @returns {Promise<Object>} Promise
+     */
+
+    getEmailFolder(folderType, filter) {
+        folderType = folderType || "1";
+        filter = filter || "";
+        return this.sendRequest("getEmailFolder", { "folderType": folderType, "filter": filter });
+    }
+
+    /**
+     * Method getEmails returns to the Response block the list of detailed of uMail emails in the selected folder by using specified search filter. The method is called by using the FolderType parameters, which pass on the number of the folder from which the list should be taken (numbers of the folders 1-Inbox, 2-Drafts, 4-Sent, 8-Outbox, 16-Trash) and it is possible to specify the Filter parameter, which passes on the text value for the search of emails in uMail (has to contain the full or partial match with the Public Key, Nickname or the text of email).
+     * @param {string} folderType 1 - Inbox | 2 - Drafts | 4 - Sent | 8 - Outbox | 16 - Trash
+     * @param {string} filter Filter string
+     * @returns {Promise<Object>} Promise
+     */
+
+    getEmails(folderType, filter) {
+        folderType = folderType || "1";
+        filter = filter || "";
+        return this.sendRequest("getEmails", { "folderType": folderType, "filter": filter });
+    }
+
+    /**
+     * Method getEmailById returns the information based on the selected email in uMail. The method is called by using the Id parameter, which passes on the id of the email (id of the email can be found by using getEmailFolder method).
+     * @param {string} id Email ID
+     * @returns {Promise<Object>} Promise
+     */
+
+    getEmailById(id) {
+        id = id || "";
+        return this.sendRequest("getEmailById", { "id": id });
+    }
+
+    /**
+     * Method deleteEmail deletes email in uMail. First deletion will move email to the Trash, subsequent will remove from the database. The method is called by using the Id parameter which passes on the id of the email (id of the email can be found by using getEmailFolder method). In the Response field the status of completion of the operation is displayed.
+     * @param {string} id Email ID
+     * @returns {Promise<Object>} Promise
+     */
+
+    deleteEmail(id) {
+        id = id || "";
+        return this.sendRequest("deleteEmail", { "id": id });
+    }
+
+    /**
+     * Method sendReplyEmailMessage creates response email in uMail for the incoming email and sends it to the contact with new message. The method is called by using the Id parameters, which pass on the id of the email (id of the email can be found by using getEmailFolder method) and Body, which passes on the text of the email in uMail. In the Response field the status of completion of the operation is displayed.
+     * @param {string} id Email ID to reply
+     * @param {string} body Reply body
+     * @returns {Promise<Object>} Promise
+     */
+
+    sendReplyEmailMessage(id, body) {
+        id = id || "";
+        body = body || "";
+        return this.sendRequest("sendReplyEmailMessage", { "id": id, "body": body });
+    }
+
+    /**
+     * Method sendForwardEmailMessage creates response email for an incoming email in uMail and sends it to the selected contact with the new message. The method is called by using the 'Id' parameter, which passes on the id of the email (id of the email can be found by using getEmailFolder method); 'To', which passes on the Public Key or Nickname of the user to which the email will be sent; and 'Body', which passes on the text in uMail. In the Response field the status of completion of the operation is displayed.
+     * @param {string} id Email ID to forward
+     * @param {string} to Contact's Public Key
+     * @param {string} body Email body
+     * @returns {Promise<Object>} Promise
+     */
+
+    sendForwardEmailMessage(id, to, body) {
+        id = id || "";
+        to = to || "";
+        body = body || "";
+        return this.sendRequest("sendForwardEmailMessage", { "id": id, "to": to, "body": body });
+    }
+
+    // #endregion
+
+    // #region Economics methods
+
+    /**
+     * Method getFinanceSystemInformation returns in the Response field the information about Utopia financial system (information about fees and limits). Method is called without using any parameters.
+     * @returns {Promise<Object>} Promise
+     */
+
+    getFinanceSystemInformation() {
+        return this.sendRequest("getFinanceSystemInformation");
+    }
+
+    /**
+     * Method getBalance returns in the Response field the amount of cryptons on the primary balance, without considering the balance on cards. Method is called without using any parameters.
+     * @returns {Promise<Object>} Promise
+     */
+
+    getBalance() {
+        return this.sendRequest("getBalance");
     }
 
     /**
@@ -439,101 +751,7 @@ class Utopia {
         comment = comment || "";
         return this.sendRequest("sendPayment", {
             "cardid": cardId, "to": to, "amount": amount, "comment": comment
-        })
-    }
-
-    /**
-     * Method getEmailFolder returns to the Response block the list of identifications of uMail emails in the selected folder by using specified search filter. The method is called by using the FolderType parameters, which pass on the number of the folder from which the list should be taken (numbers of the folders 1-Inbox, 2-Drafts, 4-Sent, 8-Outbox, 16-Trash) and it is possible to specify the Filter parameter, which passes on the text value for the search of emails in uMail (has to contain the full or partial match with the Public Key, Nickname or the text of email).
-     * @param {string} folderType 1 - Inbox | 2 - Drafts | 4 - Sent | 8 - Outbox | 16 - Trash
-     * @param {string} filter Filter string
-     * @returns {Promise<Object>} Promise
-     */
-
-    getEmailFolder(folderType, filter) {
-        folderType = folderType || "1";
-        filter = filter || "";
-        return this.sendRequest("getEmailFolder", { "folderType": folderType, "filter": filter })
-    }
-
-    /**
-     * Method getEmails returns to the Response block the list of detailed of uMail emails in the selected folder by using specified search filter. The method is called by using the FolderType parameters, which pass on the number of the folder from which the list should be taken (numbers of the folders 1-Inbox, 2-Drafts, 4-Sent, 8-Outbox, 16-Trash) and it is possible to specify the Filter parameter, which passes on the text value for the search of emails in uMail (has to contain the full or partial match with the Public Key, Nickname or the text of email).
-     * @param {string} folderType 1 - Inbox | 2 - Drafts | 4 - Sent | 8 - Outbox | 16 - Trash
-     * @param {string} filter Filter string
-     * @returns {Promise<Object>} Promise
-     */
-
-    getEmails(folderType, filter) {
-        folderType = folderType || "1";
-        filter = filter || "";
-        return this.sendRequest("getEmails", { "folderType": folderType, "filter": filter })
-    }
-
-    /**
-     * Method getEmailById returns the information based on the selected email in uMail. The method is called by using the Id parameter, which passes on the id of the email (id of the email can be found by using getEmailFolder method).
-     * @param {string} id Email ID
-     * @returns {Promise<Object>} Promise
-     */
-
-    getEmailById(id) {
-        id = id || "";
-        return this.sendRequest("getEmailById", { "id": id })
-    }
-
-    /**
-     * Method deleteEmail deletes email in uMail. First deletion will move email to the Trash, subsequent will remove from the database. The method is called by using the Id parameter which passes on the id of the email (id of the email can be found by using getEmailFolder method). In the Response field the status of completion of the operation is displayed.
-     * @param {string} id Email ID
-     * @returns {Promise<Object>} Promise
-     */
-
-    deleteEmail(id) {
-        id = id || "";
-        return this.sendRequest("deleteEmail", { "id": id })
-    }
-
-    /**
-     * Method sendReplyEmailMessage creates response email in uMail for the incoming email and sends it to the contact with new message. The method is called by using the Id parameters, which pass on the id of the email (id of the email can be found by using getEmailFolder method) and Body, which passes on the text of the email in uMail. In the Response field the status of completion of the operation is displayed.
-     * @param {string} id Email ID to reply
-     * @param {string} body Reply body
-     * @returns {Promise<Object>} Promise
-     */
-
-    sendReplyEmailMessage(id, body) {
-        id = id || "";
-        body = body || "";
-        return this.sendRequest("sendReplyEmailMessage", { "id": id, "body": body })
-    }
-
-    /**
-     * Method sendForwardEmailMessage creates response email for an incoming email in uMail and sends it to the selected contact with the new message. The method is called by using the 'Id' parameter, which passes on the id of the email (id of the email can be found by using getEmailFolder method); 'To', which passes on the Public Key or Nickname of the user to which the email will be sent; and 'Body', which passes on the text in uMail. In the Response field the status of completion of the operation is displayed.
-     * @param {string} id Email ID to forward
-     * @param {string} to Contact's Public Key
-     * @param {string} body Email body
-     * @returns {Promise<Object>} Promise
-     */
-
-    sendForwardEmailMessage(id, to, body) {
-        id = id || "";
-        to = to || "";
-        body = body || "";
-        return this.sendRequest("sendForwardEmailMessage", { "id": id, "to": to, "body": body })
-    }
-
-    /**
-     * Method getFinanceSystemInformation returns in the Response field the information about Utopia financial system (information about fees and limits). Method is called without using any parameters.
-     * @returns {Promise<Object>} Promise
-     */
-
-    getFinanceSystemInformation() {
-        return this.sendRequest("getFinanceSystemInformation")
-    }
-
-    /**
-     * Method getBalance returns in the Response field the amount of cryptons on the primary balance, without considering the balance on cards. Method is called without using any parameters.
-     * @returns {Promise<Object>} Promise
-     */
-
-    getBalance() {
-        return this.sendRequest("getBalance")
+        });
     }
 
     /**
@@ -560,8 +778,23 @@ class Utopia {
             "filters": filters, "referenceNumber": referenceNumber,
             "toDate": toDate, "fromDate": fromDate, "batchId": batchId,
             "fromAmount": fromAmount, "toAmount": toAmount
-        })
+        });
     }
+
+    /**
+     * Method getTransactionIdByReferenceNumber allows to receive 'batchid' of the transaction by using the ReferenceNumber. In the Response field, batchid is returned, which is considered a successful status for completion of the operation.
+     * @param {string} referenceNumber
+     * @returns {Promise<Object>} Promise
+     */
+
+    getTransactionIdByReferenceNumber(referenceNumber) {
+        referenceNumber = referenceNumber || "1";
+        return this.sendRequest("getTransactionIdByReferenceNumber", { "referenceNumber": referenceNumber });
+    }
+
+    // #endregion
+
+    // #region Cards methods
 
     /**
      * Method getCards returns in the Response field the current list of cards and their detailed information from uWallet. Method is called without using any parameters.
@@ -569,7 +802,7 @@ class Utopia {
      */
 
     getCards() {
-        return this.sendRequest("getCards")
+        return this.sendRequest("getCards");
     }
 
     /**
@@ -584,7 +817,7 @@ class Utopia {
         name = name || ":)";
         color = color || "";
         numbers = numbers || "";
-        return this.sendRequest("addCard", { "name": name, "color": color, "preorderNumberInCard": numbers })
+        return this.sendRequest("addCard", { "name": name, "color": color, "preorderNumberInCard": numbers });
     }
 
     /**
@@ -595,8 +828,12 @@ class Utopia {
 
     deleteCard(cardId) {
         cardId = cardId || "";
-        return this.sendRequest("deleteCard", { "cardid": cardId })
+        return this.sendRequest("deleteCard", { "cardid": cardId });
     }
+
+    // #endregion
+
+    // #region Mining methods
 
     /**
      * Method enableMining turns on the mining in the Utopia client (mining is available only for x64 client). As a parameter the Status (true/false) is specified, which turns on or off the mining process. In the Response field the status of completion of the operation is displayed.
@@ -606,7 +843,7 @@ class Utopia {
 
     enableMining(enabled) {
         enabled = enabled || "true";
-        return this.sendRequest("enableMining", { "enable": enabled })
+        return this.sendRequest("enableMining", { "enable": enabled });
     }
 
     /**
@@ -627,7 +864,61 @@ class Utopia {
 
     enableInterest(enabled) {
         enabled = enabled || "true";
-        return this.sendRequest("enableInterest", { "enable": enabled })
+        return this.sendRequest("enableInterest", { "enable": enabled });
+    }
+
+    /**
+     * Method requestTreasuryPoSRates makes request to obtain treasury PoS rate data
+     * @returns {Promise<Object>} Promise
+    */
+
+    requestTreasuryPoSRates() {
+        return this.sendRequest("requestTreasuryPoSRates");
+    }
+
+    /**
+     * Method getTreasuryPoSRates returns in Response block the detailed information about treasury PoS rate
+     * @returns {Promise<Object>} Promise
+    */
+
+    getTreasuryPoSRates() {
+        return this.sendRequest("getTreasuryPoSRates");
+    }
+
+    /**
+     * Method requestTreasuryInterestRates makes request to obtain treasury interest rate data
+     * @returns {Promise<Object>} Promise
+     */
+
+    requestTreasuryInterestRates() {
+        return this.sendRequest("requestTreasuryInterestRates");
+    }
+
+    /**
+     * Method getTreasuryInterestRates returns in Response block the detailed information about threasury interest rate
+     * @returns {Promise<Object>} Promise
+     */
+
+    getTreasuryInterestRates() {
+        return this.sendRequest("getTreasuryInterestRates");
+    }
+
+    /**
+     * Method requestTreasuryTransactionVolumes makes request to obtain treasury transaction volume data
+     * @returns {Promise<Object>} Promise
+     */
+
+    requestTreasuryTransactionVolumes() {
+        return this.sendRequest("requestTreasuryTransactionVolumes");
+    }
+
+    /**
+     * Method getTreasuryTransactionVolumes returns in Response block the detailed information about threasury transaction volume
+     * @returns {Promise<Object>} Promise
+     */
+
+    getTreasuryTransactionVolumes() {
+        return this.sendRequest("getTreasuryTransactionVolumes");
     }
 
     /**
@@ -638,7 +929,7 @@ class Utopia {
 
     enableHistoryMining(enabled) {
         enabled = enabled || "true";
-        return this.sendRequest("enableHistoryMining", { "enable": enabled })
+        return this.sendRequest("enableHistoryMining", { "enable": enabled });
     }
 
     /**
@@ -651,7 +942,7 @@ class Utopia {
      */
 
     statusHistoryMining() {
-        return this.sendRequest("statusHistoryMining")
+        return this.sendRequest("statusHistoryMining");
     }
 
     /**
@@ -660,7 +951,7 @@ class Utopia {
      */
 
     getMiningBlocks() {
-        return this.sendRequest("getMiningBlocks")
+        return this.sendRequest("getMiningBlocks");
     }
 
     /**
@@ -669,8 +960,12 @@ class Utopia {
      */
 
     getMiningInfo() {
-        return this.sendRequest("getMiningInfo")
+        return this.sendRequest("getMiningInfo");
     }
+
+    // #endregion
+
+    // #region Vouchers methods
 
     /**
      * Method getVouchers returns to the Response field the information about existing vouchers as a list. The method is called without using any parameters. ).
@@ -678,7 +973,7 @@ class Utopia {
      */
 
     getVouchers() {
-        return this.sendRequest("getVouchers")
+        return this.sendRequest("getVouchers");
     }
 
     /**
@@ -689,7 +984,7 @@ class Utopia {
 
     createVoucher(amount) {
         amount = amount || "0.000000001";
-        return this.sendRequest("createVoucher", { "amount": amount })
+        return this.sendRequest("createVoucher", { "amount": amount });
     }
 
     /**
@@ -699,7 +994,7 @@ class Utopia {
      */
 
     useVoucher(voucherId) {
-        return this.sendRequest("useVoucher", { "voucherid": voucherId })
+        return this.sendRequest("useVoucher", { "voucherid": voucherId });
     }
 
     /**
@@ -709,8 +1004,12 @@ class Utopia {
      */
 
     deleteVoucher(voucherId) {
-        return this.sendRequest("deleteVoucher", { "voucherid": voucherId })
+        return this.sendRequest("deleteVoucher", { "voucherid": voucherId });
     }
+
+    // #endregion
+
+    // #region Invoices methods
 
     /**
      * Method getInvoices returns to the Response field the list of active invoiced. The method is called with using any optional parameters.
@@ -739,7 +1038,7 @@ class Utopia {
             "transactionId": transactionId, "status": status,
             "startDateTime": startDateTime, "endDateTime": endDateTime,
             "referenceNumber": referenceNumber
-        })
+        });
     }
 
     /**
@@ -750,18 +1049,7 @@ class Utopia {
 
     getInvoiceByReferenceNumber(referenceNumber) {
         referenceNumber = referenceNumber || "1";
-        return this.sendRequest("getInvoiceByReferenceNumber", { "referenceNumber": referenceNumber })
-    }
-
-    /**
-     * Method getTransactionIdByReferenceNumber allows to receive 'batchid' of the transaction by using the ReferenceNumber. In the Response field, batchid is returned, which is considered a successful status for completion of the operation.
-     * @param {string} referenceNumber
-     * @returns {Promise<Object>} Promise
-     */
-
-    getTransactionIdByReferenceNumber(referenceNumber) {
-        referenceNumber = referenceNumber || "1";
-        return this.sendRequest("getTransactionIdByReferenceNumber", { "referenceNumber": referenceNumber })
+        return this.sendRequest("getInvoiceByReferenceNumber", { "referenceNumber": referenceNumber });
     }
 
     /**
@@ -776,7 +1064,7 @@ class Utopia {
         cardId = cardId || "";
         amount = amount || "";
         comment = comment || "";
-        return this.sendRequest("sendInvoice", { "cardid": cardId, "amount": amount, "comment": comment })
+        return this.sendRequest("sendInvoice", { "cardid": cardId, "amount": amount, "comment": comment });
     }
 
     /**
@@ -787,7 +1075,7 @@ class Utopia {
 
     acceptInvoice(invoiceId) {
         invoiceId = invoiceId || "";
-        return this.sendRequest("acceptInvoice", { "invoiceid": invoiceId })
+        return this.sendRequest("acceptInvoice", { "invoiceid": invoiceId });
     }
 
     /**
@@ -798,7 +1086,7 @@ class Utopia {
 
     declineInvoice(invoiceId) {
         invoiceId = invoiceId || "";
-        return this.sendRequest("declineInvoice", { "invoiceid": invoiceId })
+        return this.sendRequest("declineInvoice", { "invoiceid": invoiceId });
     }
 
     /**
@@ -809,9 +1097,12 @@ class Utopia {
 
     cancelInvoice(invoiceId) {
         invoiceId = invoiceId || "";
-        return this.sendRequest("cancelInvoice", { "invoiceid": invoiceId })
+        return this.sendRequest("cancelInvoice", { "invoiceid": invoiceId });
     }
 
+    // #endregion
+
+    // #region uNS Transfers methods
     /**
      * Method requestUnsTransfer allows to transfer the uNS record to contact. The method is called with mandatory 'Name' and 'Public Key' parameters. Name parameter is the name of the uNS record from the list of own uNS records. hexNewOwnerPk represents hash of the public portion of the key (as in some instances, key is now known, only hash is), to which the transfer is being made. In the Response field the status of completion of the operation is displayed. 
      * @param {string} name uNS name to transfer
@@ -822,7 +1113,7 @@ class Utopia {
     requestUnsTransfer(name, newOwnerPk) {
         name = name || "";
         newOwnerPk = newOwnerPk || "";
-        return this.sendRequest("requestUnsTransfer", { "name": name, "hexNewOwnerPk": newOwnerPk })
+        return this.sendRequest("requestUnsTransfer", { "name": name, "hexNewOwnerPk": newOwnerPk });
     }
 
     /**
@@ -833,7 +1124,7 @@ class Utopia {
 
     acceptUnsTransfer(requestId) {
         requestId = requestId || "";
-        return this.sendRequest("acceptUnsTransfer", { "requestid": requestId })
+        return this.sendRequest("acceptUnsTransfer", { "requestid": requestId });
     }
 
     /**
@@ -844,7 +1135,7 @@ class Utopia {
 
     declineUnsTransfer(requestId) {
         requestId = requestId || "";
-        return this.sendRequest("declineUnsTransfer", { "requestid": requestId })
+        return this.sendRequest("declineUnsTransfer", { "requestid": requestId });
     }
 
     /**
@@ -853,7 +1144,7 @@ class Utopia {
      */
 
     incomingUnsTransfer() {
-        return this.sendRequest("incomingUnsTransfer")
+        return this.sendRequest("incomingUnsTransfer");
     }
 
     /**
@@ -862,67 +1153,12 @@ class Utopia {
      */
 
     outgoingUnsTransfer() {
-        return this.sendRequest("outgoingUnsTransfer")
+        return this.sendRequest("outgoingUnsTransfer");
     }
 
-    /**
-     * Attention! The method storageWipe irrevocably removes all databases of the user. The method is called without using any parameters. In the Response field the status of completion of the operation is displayed.
-     * @returns {Promise<Object>} Promise
-     */
+    // #endregion
 
-    storageWipe() {
-        return this.sendRequest("storageWipe")
-    }
-
-    /**
-     * Method sendAuthorizationRequest allows to send the authorization request to add the user to the contact list. The method is called with mandatory use of 'Public Key' and 'Message' parameters. The Public Key parameter represents the Public Key of the person being added. The message parameter represents itself the text message with the request to be authorized. In the Response field the status of completion of sending such request is displayed.
-     * @param {string} pk
-     * @param {string} message 
-     * @returns {Promise<Object>} Promise
-     */
-
-    sendAuthorizationRequest(pk, message) {
-        pk = pk || "";
-        message = message || "";
-        return this.sendRequest("sendAuthorizationRequest", { "pk": pk, "message": message })
-    }
-
-    /**
-     * Method acceptAuthorizationRequest accepts the incoming authorization request to add user to contacts. The method is called with mandatory use of 'Public Key' and 'Message' parameters. The Public Key parameter represents the Public Key of the person who send the authorization request. The message parameter represents itself the text message. In the Response field the status of completion of sending such request is displayed.
-     * @param {string} pk
-     * @param {string} message
-     * @returns {Promise<Object>} Promise
-     */
-
-    acceptAuthorizationRequest(pk, message) {
-        pk = pk || "";
-        message = message || "";
-        return this.sendRequest("acceptAuthorizationRequest", { "pk": pk, "message": message })
-    }
-
-    /**
-     * Method rejectAuthorizationRequest declines the incoming authorization request from user with Public key, which is specified as first parameter (Public Key) of the rejectAuthorizationRequest method. The second parameter of the method is Message row, that represents itself the response message the user who`s authorization is rejected. In the Response field the status of completion of such request is displayed.
-     * @param {string} pk
-     * @param {string} message
-     * @returns {Promise<Object>} Promise
-     */
-
-    rejectAuthorizationRequest(pk, message) {
-        pk = pk || "";
-        message = message || "";
-        return this.sendRequest("rejectAuthorizationRequest", { "pk": pk, "message": message })
-    }
-
-    /**
-     * Method deleteContact allows to perform the operation of removing selected user from the list of contacts. The method is called with mandatory use of 'Public Key' parameter that represents Public key of the to be removed contact. In the Response field the status of completion of such operation is displayed.
-     * @param {string} pk
-     * @returns {Promise<Object>} Promise
-     */
-
-    deleteContact(pk) {
-        pk = pk || "";
-        return this.sendRequest("deleteContact", { "pk": pk })
-    }
+    // #region Channels methods
 
     /**
      * Method getChannels returns in the Response field the current list of all channels of Utopia ecosystem, it is possible to search by name of the channel (partial or complete matching). As a parameter, a Filter can be specified, which can be used for searching of the channel by name ( has to contain full or partial matching of the channel name).
@@ -934,7 +1170,7 @@ class Utopia {
     getChannels(filter, channelType) {
         filter = filter || "";
         channelType = channelType || "";
-        return this.sendRequest("getChannels", { "filter": filter, "channel_type": channelType })
+        return this.sendRequest("getChannels", { "filter": filter, "channel_type": channelType });
     }
 
     /**
@@ -947,14 +1183,14 @@ class Utopia {
     sendChannelMessage(channelId, message) {
         channelId = channelId || "UTOPIA";
         message = message || "How to use Utopia Node.js API?";
-        return this.sendRequest("sendChannelMessage", { "channelid": channelId, "message": message })
+        return this.sendRequest("sendChannelMessage", { "channelid": channelId, "message": message });
     }
 
     /**
      * Method sendChannelPicture creates and sends message with picture in base64 format
      * @param {string} channelId
      * @param {string} imageFilename Image filename
-     * @param {string} base64Image (Optional) Use this if you have encoded Base64 image
+     * @param {string} base64Image (Optional) Use this if you have Base64 encoded image
      * @returns {Promise<Object>} Promise
      */
 
@@ -978,7 +1214,7 @@ class Utopia {
         return this.sendRequest("sendChannelPicture", {
             "channelid": channelId, "base64_image": base64Image,
             "filename_image": imageFilename
-        })
+        });
     }
 
     /**
@@ -991,7 +1227,7 @@ class Utopia {
     joinChannel(channelId, password) {
         channelId = channelId || "";
         password = password || "";
-        return this.sendRequest("joinChannel", { "ident": channelId, "password": password })
+        return this.sendRequest("joinChannel", { "ident": channelId, "password": password });
     }
 
     /**
@@ -1002,7 +1238,7 @@ class Utopia {
 
     leaveChannel(channelId) {
         channelId = channelId || "";
-        return this.sendRequest("leaveChannel", { "channelid": channelId })
+        return this.sendRequest("leaveChannel", { "channelid": channelId });
     }
 
     /**
@@ -1013,7 +1249,7 @@ class Utopia {
 
     getChannelMessages(channelId) {
         channelId = channelId || "";
-        return this.sendRequest("getChannelMessages", { "channelid": channelId })
+        return this.sendRequest("getChannelMessages", { "channelid": channelId });
     }
 
     /**
@@ -1024,7 +1260,22 @@ class Utopia {
 
     getChannelInfo(channelId) {
         channelId = channelId || "";
-        return this.sendRequest("getChannelInfo", { "channelid": channelId })
+        return this.sendRequest("getChannelInfo", { "channelid": channelId });
+    }
+
+    /** 
+     * Method getChannelAvatar returns to the Response field the avatar of the selected channel in the base64 or hex format.
+     * @param {string} channelId Channel ID
+     * @param {string} coder BASE64/HEX
+     * @param {string} format PNG/JPG
+     * @returns {Promise<Object>} Promise
+    */
+
+    getChannelAvatar(channelId, coder, format) {
+        channelId = channelId || "UTOPIA";
+        coder = coder || "BASE64";
+        format = format || "PNG";
+        return this.sendRequest("getChannelAvatar", { "channelid": channelId, "coder": coder, "format": format });
     }
 
     /**
@@ -1035,7 +1286,7 @@ class Utopia {
 
     getChannelModerators(channelId) {
         channelId = channelId || "";
-        return this.sendRequest("getChannelModerators", { "channelid": channelId })
+        return this.sendRequest("getChannelModerators", { "channelid": channelId });
     }
 
     /**
@@ -1046,7 +1297,7 @@ class Utopia {
 
     getChannelContacts(channelId) {
         channelId = channelId || "";
-        return this.sendRequest("getChannelContacts", { "channelid": channelId })
+        return this.sendRequest("getChannelContacts", { "channelid": channelId });
     }
 
     /**
@@ -1059,7 +1310,7 @@ class Utopia {
     getChannelModeratorRight(channelId, moderator) {
         channelId = channelId || "";
         moderator = moderator || "";
-        return this.sendRequest("getChannelModeratorRight", { "channelid": channelId, "moderator": moderator })
+        return this.sendRequest("getChannelModeratorRight", { "channelid": channelId, "moderator": moderator });
     }
 
     /**
@@ -1092,7 +1343,7 @@ class Utopia {
             "language": language, "hashtags": hashtags, "geoTag": geoTag,
             "base64_avatar_image": base64AvatarImage,
             "hide_in_UI": hideInUI
-        })
+        });
     }
 
     /**
@@ -1124,7 +1375,7 @@ class Utopia {
             "read_only": readOnly, "language": language, "hashtags": hashtags,
             "geoTag": geoTag, "base64_avatar_image": base64AvatarImage,
             "hide_in_UI": hideInUI
-        })
+        });
     }
 
     /**
@@ -1135,7 +1386,7 @@ class Utopia {
 
     deleteChannel(channelId) {
         channelId = channelId || "";
-        return this.sendRequest("deleteChannel", { "channelid": channelId })
+        return this.sendRequest("deleteChannel", { "channelid": channelId });
     }
 
     /**
@@ -1144,7 +1395,7 @@ class Utopia {
      */
 
     getChannelSystemInfo() {
-        return this.sendRequest("getChannelSystemInfo")
+        return this.sendRequest("getChannelSystemInfo");
     }
 
     /**
@@ -1154,7 +1405,7 @@ class Utopia {
     */
 
     getChannelBannedConacts(channelId) {
-        return this.sendRequest("getChannelBannedConacts", {"channelid": channelId});
+        return this.sendRequest("getChannelBannedConacts", { "channelid": channelId });
     }
 
     /**
@@ -1165,8 +1416,12 @@ class Utopia {
     */
 
     applyChannelBannedConacts(channelId, newList) {
-        return this.sendRequest("applyChannelBannedConacts", {"channelid": channelId, "newList": newList});
+        return this.sendRequest("applyChannelBannedConacts", { "channelid": channelId, "newList": newList });
     }
+
+    // #endregion
+
+    // #region uNS methods
 
     /**
      * Method unsCreateRecordRequest sends request for uNS name registration in the Utopia ecosystem for the selected term. As a parameter the uNS name is used (the name contains symbols (A-Z), numbers (0-9), dash symbol (-) and period (.) and can be no greater than 32 symbols in length.) and Valid (yyyy-mm-dd), which passes on the final date of the term for this name(uNS) (by default 6 months), isPrimary which specifies if the uNS Name is primary, and ChannelId, which passes on the id of the channel in which the message is being sent (finding the id of the channel is possible by using the getChannels method). In the Response field the status of completion of the operation is displayed.
@@ -1185,7 +1440,7 @@ class Utopia {
         return this.sendRequest("unsCreateRecordRequest", {
             "nick": nick, "valid": valid, "isPrimary": isPrimary,
             "channelId": channelId
-        })
+        });
     }
 
     /**
@@ -1205,7 +1460,7 @@ class Utopia {
         return this.sendRequest("unsCreateRecordRequest", {
             "nick": nick, "valid": valid, "isPrimary": isPrimary,
             "channelId": channelId
-        })
+        });
     }
 
     /**
@@ -1216,7 +1471,7 @@ class Utopia {
 
     unsDeleteRecordRequest(nick) {
         nick = nick || "";
-        return this.sendRequest("unsDeleteRecordRequest", { "nick": nick })
+        return this.sendRequest("unsDeleteRecordRequest", { "nick": nick });
     }
 
     /**
@@ -1227,7 +1482,7 @@ class Utopia {
 
     unsSearchByPk(filter) {
         filter = filter || "";
-        return this.sendRequest("unsSearchByPk", { "filter": filter })
+        return this.sendRequest("unsSearchByPk", { "filter": filter });
     }
 
     /**
@@ -1238,7 +1493,7 @@ class Utopia {
 
     unsSearchByNick(filter) {
         filter = filter || "";
-        return this.sendRequest("unsSearchByNick", { "filter": filter })
+        return this.sendRequest("unsSearchByNick", { "filter": filter });
     }
 
     /**
@@ -1247,7 +1502,7 @@ class Utopia {
      */
 
     getUnsSyncInfo() {
-        return this.sendRequest("getUnsSyncInfo")
+        return this.sendRequest("getUnsSyncInfo");
     }
 
     /**
@@ -1256,7 +1511,7 @@ class Utopia {
      */
 
     unsRegisteredNames() {
-        return this.sendRequest("unsRegisteredNames")
+        return this.sendRequest("unsRegisteredNames");
     }
 
     /**
@@ -1269,26 +1524,23 @@ class Utopia {
     summaryUnsRegisteredNames(dateFrom, dateTo) {
         dateTo = dateTo || "";
         dateFrom = dateFrom || "";
-        return this.sendRequest("summaryUnsRegisteredNames", { "from_date": dateFrom, "to_date": dateTo })
+        return this.sendRequest("summaryUnsRegisteredNames", { "from_date": dateFrom, "to_date": dateTo });
     }
-
+    
     /**
-     * Method clearTrayNotifications allows to drop all existing notifications in the tray of the operating system. The method is called without using any parameters. In the Response field the status of completion of the operation is displayed.
+     * Method getWhoIsInfo returns in Response block the detailed information about selected user. As a parameter of the method, the Public key of the particular user can be used, or his nickname, if such contact was added to the contact list. 
+     * @param {string} nameOrPk uNS name or Public Key to lookup
      * @returns {Promise<Object>} Promise
      */
 
-    clearTrayNotifications() {
-        return this.sendRequest("clearTrayNotifications")
+    getWhoIsInfo(nameOrPk) {
+        nameOrPk = nameOrPk || "";
+        return this.sendRequest("getWhoIsInfo", { "owner": nameOrPk });
     }
 
-    /**
-     * Method getNetworkConnections returns in Response block detailed information about all current network connections. The method is called without using any parameters. 
-     * @returns {Promise<Object>} Promise
-     */
+    // #endregion
 
-    getNetworkConnections() {
-        return this.sendRequest("getNetworkConnections")
-    }
+    // #region uNS forwarding methods
 
     /**
      * Method getProxyMappings returns in Response block the list of all configured proxy mappings. The method is called without using any parameters. 
@@ -1296,7 +1548,7 @@ class Utopia {
      */
 
     getProxyMappings() {
-        return this.sendRequest("getProxyMappings")
+        return this.sendRequest("getProxyMappings");
     }
 
     /**
@@ -1318,7 +1570,7 @@ class Utopia {
         return this.sendRequest("createProxyMapping", {
             "srcHost": srcHost, "srcPort": srcPort, "dstHost": dstHost,
             "dstPort": dstPort, "enabled": enabled
-        })
+        });
     }
 
     /**
@@ -1329,7 +1581,7 @@ class Utopia {
 
     enableProxyMapping(mappingId) {
         mappingId = mappingId || "";
-        return this.sendRequest("enableProxyMapping", { "mappingId": mappingId })
+        return this.sendRequest("enableProxyMapping", { "mappingId": mappingId });
     }
 
     /**
@@ -1340,7 +1592,7 @@ class Utopia {
 
     disableProxyMapping(mappingId) {
         mappingId = mappingId || "";
-        return this.sendRequest("disableProxyMapping", { "mappingid": mappingId })
+        return this.sendRequest("disableProxyMapping", { "mappingid": mappingId });
     }
 
     /**
@@ -1351,141 +1603,12 @@ class Utopia {
 
     removeProxyMapping(mappingId) {
         mappingId = mappingId || "";
-        return this.sendRequest("removeProxyMapping", { "mappingId": mappingId })
+        return this.sendRequest("removeProxyMapping", { "mappingId": mappingId });
     }
 
-    /**
-     * Method lowTrafficMode returns in Response block the status of low Traffic mode. The method is called without using any parameters. 
-     * @returns {Promise<Object>} Promise
-     */
+    // #endregion
 
-    lowTrafficMode() {
-        return this.sendRequest("lowTrafficMode")
-    }
-
-    /**
-     * Method setLowTrafficMode allows to turn on or off the low Traffic mode. The method is called by using the enabled parameter, which represents itself a status of true or false that is being set for this particular mode. 
-     * @param {string} enabled
-     * @returns {Promise<Object>} Promise
-     */
-
-    setLowTrafficMode(enabled) {
-        enabled = enabled || "";
-        return this.sendRequest("setLowTrafficMode", { "enavled": enabled })
-    }
-
-    /**
-     * Method getWhoIsInfo returns in Response block the detailed information about selected user. As a parameter of the method, the Public key of the particular user can be used, or his nickname, if such contact was added to the contact list. 
-     * @param {string} nameOrPk uNS name or Public Key to lookup
-     * @returns {Promise<Object>} Promise
-     */
-
-    getWhoIsInfo(nameOrPk) {
-        nameOrPk = nameOrPk || "";
-        return this.sendRequest("getWhoIsInfo", { "owner": nameOrPk })
-    }
-
-    /**
-     * Method requestTreasuryPoSRates makes request to obtain treasury PoS rate data
-     * @returns {Promise<Object>} Promise
-    */
-
-    requestTreasuryPoSRates() {
-        return this.sendRequest("requestTreasuryPoSRates");
-    }
-
-    /**
-     * Method getTreasuryPoSRates returns in Response block the detailed information about treasury PoS rate
-     * @returns {Promise<Object>} Promise
-    */
-
-    getTreasuryPoSRates() {
-        return this.sendRequest("getTreasuryPoSRates");
-    }
-
-    /**
-     * Method requestTreasuryInterestRates makes request to obtain treasury interest rate data
-     * @returns {Promise<Object>} Promise
-     */
-
-    requestTreasuryInterestRates() {
-        return this.sendRequest("requestTreasuryInterestRates")
-    }
-
-    /**
-     * Method getTreasuryInterestRates returns in Response block the detailed information about threasury interest rate
-     * @returns {Promise<Object>} Promise
-     */
-
-    getTreasuryInterestRates() {
-        return this.sendRequest("getTreasuryInterestRates")
-    }
-
-    /**
-     * Method requestTreasuryTransactionVolumes makes request to obtain treasury transaction volume data
-     * @returns {Promise<Object>} Promise
-     */
-
-    requestTreasuryTransactionVolumes() {
-        return this.sendRequest("requestTreasuryTransactionVolumes")
-    }
-
-    /**
-     * Method getTreasuryTransactionVolumes returns in Response block the detailed information about threasury transaction volume
-     * @returns {Promise<Object>} Promise
-     */
-
-    getTreasuryTransactionVolumes() {
-        return this.sendRequest("getTreasuryTransactionVolumes")
-    }
-
-    /**
-     * Method ucodeEncode returns image of ucode in sizeImage with public key from hexCode
-     * @param {string} hexCode Public Key
-     * @param {string} sizeImage Image size in pixels
-     * @param {string} coder BASE64 | HEX
-     * @param {string} format PNG | JPG
-     * @returns {Promise<Object>} Promise
-     */
-
-    ucodeEncode(hexCode, sizeImage, coder, format) {
-        hexCode = hexCode || "";
-        sizeImage = sizeImage || "256";
-        coder = coder || "BASE64";
-        format = format || "PNG";
-        return this.sendRequest("ucodeEncode", {
-            "hex_code": hexCode, "size_image": sizeImage, "coder": coder,
-            "format": format
-        })
-    }
-
-    /**
-     * Method ucodeDecode returns hex public key from image in base64 format.
-     * @param {string} base64Image Image in Base64 format
-     * @returns {Promise<Object>} Promise
-     */
-
-    ucodeDecode(base64Image) {
-        return this.sendRequest("ucodeDecode", { "base64_image": base64Image })
-    }
-
-    /**
-     * Method getWebSocketState returns WSS Notifications state, 0 - disabled or active listening port number.
-     * @returns {Promise<Object>} Promise
-     */
-
-    getWebSocketState() {
-        return this.sendRequest("getWebSocketState")
-    }
-
-    /**
-     * Method setWebSocketState set WSS Notification state.
-     * @returns {Promise<Object>} Promise
-     */
-
-    setWebSocketState(enabled, port) {
-        return this.sendRequest("setWebSocketState", { "enabled": enabled, "port": port })
-    }
+    // #region Transfer manager methods
 
     /**
      * Method getTransfersFromManager returns list of file transfer.
@@ -1504,6 +1627,78 @@ class Utopia {
     getFilesFromManager() {
         return this.sendRequest("getFilesFromManager");
     }
+
+    /**
+     * Method abortTransfers aborts transfer with selected ID.
+     * @param {string} transferID ID of transfer you want to abort
+     * @returns {Promise<Object>} Promise
+     */
+
+    abortTransfer(transferID) {
+        transferID = transferID || "0";
+        return this.sendRequest("abortTransfers", { "transferId": transferID });
+    }
+
+    /**
+     * Method hideTransfers hides transfer with selected ID.
+     * @param {string} transferID ID of transfer you want to hide
+     * @returns {Promise<Object>} Promise
+     */
+
+    hideTransfer(transferID) {
+        transferID = transferID || "0";
+        return this.sendRequest("hideTransfers", { "transferId": transferID });
+    }
+
+    /**
+     * Method getFile return file with selected ID.
+     * @param {string} fileID ID of file you want to receive
+     * @returns {Promise<Object>} Promise
+     */
+
+    getFile(fileID) {
+        fileID = fileID || "0";
+        return this.sendRequest("getFile", { "fileId": fileID });
+    }
+
+    /**
+     * Method deleteFile deletes file with selected ID.
+     * @param {string} fileID ID of file you want to delete
+     * @returns {Promise<Object>} Promise
+     */
+
+    deleteFile(fileID) {
+        fileID = fileID || "0";
+        return this.sendRequest("deleteFile", { "fileId": fileID });
+    }
+
+    /**
+     * Method uploadFile upload data in base64 format and returns ID of new file.
+     * @param {string} filename Filename
+     * @param {string} base64Image (Optional) Use this if you have Base64 encoded image
+     * @returns {Promise<Object>} Promise
+     */
+
+    uploadFile(filename, base64Image) {
+        base64Image = base64Image || "";
+        filename = filename || "";
+        if (filename && base64Image.length < 1) {
+            if (fs.existsSync(filename)) {
+                if (fs.lstatSync(filename).isFile()) {
+                    var base64Image = Buffer.from(fs.readFileSync(filename)).toString("base64");
+                } else {
+                    return { "error": "path is a directory" };
+                }
+            } else {
+                return { "error": "file does not exist" };
+            }
+        } else {
+            return { "error": "filename parameter is required" };
+        }
+        return this.sendRequest("sendChannelPicture", { "base64_image": base64Image, "filename_image": filename });
+    }
+
+    // #endregion
 }
 
 module.exports = Utopia;

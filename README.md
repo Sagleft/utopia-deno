@@ -1,8 +1,8 @@
-# utopia-nodejs-api
+# utopia-nodejs-api-lite
 
 Usage: 
 ```javascript
-var apiClass = new (require("utopia-nodejs-api"))("TOKEN");
+var apiClass = new (require("utopia-nodejs-api-lite"))("TOKEN");
 apiClass.setProfileStatus("DoNotDisturb", "Understanding Utopia Node.js API").then((data)=>{
     console.info(`Success: ${JSON.stringify(data, null, 4)}`);
 }, (error)=>{
@@ -11,4 +11,4 @@ apiClass.setProfileStatus("DoNotDisturb", "Understanding Utopia Node.js API").th
 ```
 
 ## Installation
-`npm i utopia-nodejs-api`
+`npm i utopia-nodejs-api-lite`
