@@ -217,7 +217,7 @@ class Utopia {
     getNetworkConnections() {
         return this.sendRequest("getNetworkConnections");
     }
-    
+
     /**
      * Method lowTrafficMode returns in Response block the status of low Traffic mode. The method is called without using any parameters. 
      * @returns {Promise<Object>} Promise
@@ -255,7 +255,7 @@ class Utopia {
     setWebSocketState(enabled, port) {
         return this.sendRequest("setWebSocketState", { "enabled": enabled, "port": port });
     }
-    
+
     /**
      * Method ucodeEncode returns image of ucode in sizeImage with public key from hexCode
      * @param {string} hexCode Public Key
@@ -1198,18 +1198,20 @@ class Utopia {
         channelId = channelId || "";
         base64Image = base64Image || "";
         imageFilename = imageFilename || "";
-        if (imageFilename && base64Image.length < 1) {
-            if (fs.existsSync(imageFilename)) {
-                if (fs.lstatSync(imageFilename).isFile()) {
-                    var base64Image = Buffer.from(fs.readFileSync(imageFilename)).toString("base64");
+        if (base64Image.length < 1) {
+            if (imageFilename) {
+                if (fs.existsSync(imageFilename)) {
+                    if (fs.lstatSync(imageFilename).isFile()) {
+                        var base64Image = Buffer.from(fs.readFileSync(imageFilename)).toString("base64");
+                    } else {
+                        return { "error": "path is a directory" };
+                    }
                 } else {
-                    return { "error": "path is a directory" };
+                    return { "error": "file does not exist" };
                 }
             } else {
-                return { "error": "file does not exist" };
+                return { "error": "filename parameter is required" };
             }
-        } else {
-            return { "error": "filename parameter is required" };
         }
         return this.sendRequest("sendChannelPicture", {
             "channelid": channelId, "base64_image": base64Image,
@@ -1526,7 +1528,7 @@ class Utopia {
         dateFrom = dateFrom || "";
         return this.sendRequest("summaryUnsRegisteredNames", { "from_date": dateFrom, "to_date": dateTo });
     }
-    
+
     /**
      * Method getWhoIsInfo returns in Response block the detailed information about selected user. As a parameter of the method, the Public key of the particular user can be used, or his nickname, if such contact was added to the contact list. 
      * @param {string} nameOrPk uNS name or Public Key to lookup
@@ -1682,18 +1684,20 @@ class Utopia {
     uploadFile(filename, base64Image) {
         base64Image = base64Image || "";
         filename = filename || "";
-        if (filename && base64Image.length < 1) {
-            if (fs.existsSync(filename)) {
-                if (fs.lstatSync(filename).isFile()) {
-                    var base64Image = Buffer.from(fs.readFileSync(filename)).toString("base64");
+        if (base64Image.length < 1) {
+            if (filename) {
+                if (fs.existsSync(filename)) {
+                    if (fs.lstatSync(filename).isFile()) {
+                        var base64Image = Buffer.from(fs.readFileSync(filename)).toString("base64");
+                    } else {
+                        return { "error": "path is a directory" };
+                    }
                 } else {
-                    return { "error": "path is a directory" };
+                    return { "error": "file does not exist" };
                 }
             } else {
-                return { "error": "file does not exist" };
+                return { "error": "filename parameter is required" };
             }
-        } else {
-            return { "error": "filename parameter is required" };
         }
         return this.sendRequest("sendChannelPicture", { "base64_image": base64Image, "filename_image": filename });
     }
