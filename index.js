@@ -1677,18 +1677,18 @@ class Utopia {
     /**
      * Method uploadFile upload data in base64 format and returns ID of new file.
      * @param {string} filename Filename
-     * @param {string} base64Image (Optional) Use this if you have Base64 encoded image
+     * @param {string} base64Data (Optional) Use this if you have Base64 encoded image
      * @returns {Promise<Object>} Promise
      */
 
-    uploadFile(filename, base64Image) {
-        base64Image = base64Image || "";
+    uploadFile(filename, base64Data) {
+        base64Data = base64Data || "";
         filename = filename || "";
-        if (base64Image.length < 1) {
+        if (base64Data.length < 1) {
             if (filename) {
                 if (fs.existsSync(filename)) {
                     if (fs.lstatSync(filename).isFile()) {
-                        var base64Image = Buffer.from(fs.readFileSync(filename)).toString("base64");
+                        var base64Data = Buffer.from(fs.readFileSync(filename)).toString("base64");
                     } else {
                         return { "error": "path is a directory" };
                     }
@@ -1699,7 +1699,7 @@ class Utopia {
                 return { "error": "filename parameter is required" };
             }
         }
-        return this.sendRequest("sendChannelPicture", { "base64_image": base64Image, "filename_image": filename });
+        return this.sendRequest("uploadFile", { "fileDataBase64": base64Data, "fileName": filename });
     }
 
     // #endregion
