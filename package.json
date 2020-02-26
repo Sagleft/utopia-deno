@@ -1,11 +1,12 @@
 {
   "name": "utopia-nodejs-api-lite",
-  "version": "1.3.2",
+  "version": "1.3.5",
   "description": "Create bots, apps or automate your Utopia routine with this Node.js API!",
   "main": "index.js",
   "dependencies": {
     "request": "^2.88.0",
-    "ws": "^7.1.2"
+    "ws": "^7.1.2",
+	"desync": "1.1.2"
   },
   "scripts": {},
   "keywords": [

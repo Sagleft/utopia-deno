@@ -3,11 +3,12 @@
 Usage: 
 ```javascript
 var apiClass = new (require("utopia-nodejs-api-lite"))("TOKEN");
-apiClass.setProfileStatus("DoNotDisturb", "Understanding Utopia Node.js API").then((data)=>{
+var data = apiClass.setProfileStatus("DoNotDisturb", "Understanding Utopia Node.js API");
+if(!data.error{
     console.info(`Success: ${JSON.stringify(data, null, 4)}`);
-}, (error)=>{
-    console.info(`Error: ${JSON.stringify(error, null, 4)}`);
-});
+}else{
+    console.info(`Error: ${JSON.stringify(data.error, null, 4)}`);
+}
 ```
 
 ## Installation
