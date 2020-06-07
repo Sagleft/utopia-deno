@@ -2,7 +2,6 @@ const request = require("request");
 const ws = require("ws");
 const fs = require("fs");
 const EM = require("events");
-const deasync = require("deasync");
 
 class Utopia {
 
@@ -44,30 +43,10 @@ class Utopia {
         this.apiPort = apiPort || "20000";
         this.webSocketUnavailable = true;
         if (websocketenabled) {
-            var data = this.getWebSocketState();
-            if (!data.error) {
-                if (data.result !== 0) {
-                    this.wsPort = data.result.toString();
-                    this.webSocketUnavailable = false;
-                    this.webSocket = new ws(`ws://${this.apiHost}:${this.wsPort}/UtopiaWSS?token=${this.token}`);
-                    this.webSocket.on("message", (data) => {
-                        var parsed = JSON.parse(data);
-                        this.listener.emit(parsed.type, parsed);
-                        this.listener.emit("any", parsed);
-                        if (parsed.type.match(/outgoing/i)) {
-                            this.listener.emit("outgoingMessage", parsed);
-                        }
-                        if (parsed.type.match(/incoming/i)) {
-                            this.listener.emit("incomingMessage", parsed);
-                        }
-                        if (parsed.type.match(/message/i)) {
-                            this.listener.emit("message", parsed);
-                        }
-                    });
-                } else {
-                    this.wsPort = wsPort || "20001";
-                    data = this.setWebSocketState(true, this.wsPort);
-                    if (!data.error) {
+            this.getWebSocketState().then(data => {
+                if (!data.error) {
+                    if (data.result !== 0) {
+                        this.wsPort = data.result.toString();
                         this.webSocketUnavailable = false;
                         this.webSocket = new ws(`ws://${this.apiHost}:${this.wsPort}/UtopiaWSS?token=${this.token}`);
                         this.webSocket.on("message", (data) => {
@@ -85,36 +64,59 @@ class Utopia {
                             }
                         });
                     } else {
-                        console.warn("Couldn't set Websocket state, listener is disabled");
-                        this.webSocketUnavailable = true;
+                        this.wsPort = wsPort || "20001";
+                        this.setWebSocketState(true, this.wsPort).then(data => {
+                            if (!data.error) {
+                                this.webSocketUnavailable = false;
+                                this.webSocket = new ws(`ws://${this.apiHost}:${this.wsPort}/UtopiaWSS?token=${this.token}`);
+                                this.webSocket.on("message", (data) => {
+                                    var parsed = JSON.parse(data);
+                                    this.listener.emit(parsed.type, parsed);
+                                    this.listener.emit("any", parsed);
+                                    if (parsed.type.match(/outgoing/i)) {
+                                        this.listener.emit("outgoingMessage", parsed);
+                                    }
+                                    if (parsed.type.match(/incoming/i)) {
+                                        this.listener.emit("incomingMessage", parsed);
+                                    }
+                                    if (parsed.type.match(/message/i)) {
+                                        this.listener.emit("message", parsed);
+                                    }
+                                });
+                            } else {
+                                console.warn("Couldn't set Websocket state, listener is disabled");
+                                this.webSocketUnavailable = true;
+                            }
+                        });
                     }
-                }
-            } else {
-                console.warn("Couldn't get Websocket state, activating anyway");
-                this.wsPort = wsPort || 20001;
-                data = this.setWebSocketState(true, this.wsPort);
-                if (!data.error) {
-                    this.webSocketUnavailable = false;
-                    this.webSocket = new ws(`ws://${this.apiHost}:${this.wsPort}/UtopiaWSS?token=${this.token}`);
-                    this.webSocket.on("message", (data) => {
-                        var parsed = JSON.parse(data);
-                        this.listener.emit(parsed.type, parsed);
-                        this.listener.emit("any", parsed);
-                        if (parsed.type.match(/outgoing/i)) {
-                            this.listener.emit("outgoingMessage", parsed);
-                        }
-                        if (parsed.type.match(/incoming/i)) {
-                            this.listener.emit("incomingMessage", parsed);
-                        }
-                        if (parsed.type.match(/message/i)) {
-                            this.listener.emit("message", parsed);
+                } else {
+                    console.warn("Couldn't get Websocket state, activating anyway");
+                    this.wsPort = wsPort || 20001;
+                    this.setWebSocketState(true, this.wsPort).then(data => {
+                        if (!data.error) {
+                            this.webSocketUnavailable = false;
+                            this.webSocket = new ws(`ws://${this.apiHost}:${this.wsPort}/UtopiaWSS?token=${this.token}`);
+                            this.webSocket.on("message", (data) => {
+                                var parsed = JSON.parse(data);
+                                this.listener.emit(parsed.type, parsed);
+                                this.listener.emit("any", parsed);
+                                if (parsed.type.match(/outgoing/i)) {
+                                    this.listener.emit("outgoingMessage", parsed);
+                                }
+                                if (parsed.type.match(/incoming/i)) {
+                                    this.listener.emit("incomingMessage", parsed);
+                                }
+                                if (parsed.type.match(/message/i)) {
+                                    this.listener.emit("message", parsed);
+                                }
+                            });
+                        } else {
+                            console.warn("Couldn't set Websocket state, listener is disabled");
+                            this.webSocketUnavailable = true;
                         }
                     });
-                } else {
-                    console.warn("Couldn't set Websocket state, listener is disabled");
-                    this.webSocketUnavailable = true;
                 }
-            }
+            });
         }
     }
 
@@ -126,11 +128,6 @@ class Utopia {
      */
 
     sendRequest(method, params) {
-        // if (this._requestGoing) {
-        //     this._requestQueue.push({ method: method, params: params });
-        //     return new Promise();
-        // }
-        // this._requestGoing = true;
         var __ = {
             "token": this.token,
             "method": "",
@@ -138,28 +135,19 @@ class Utopia {
         };
         __.method = method || "getSystemInfo";
         __.params = params || {};
-        var done;
-        var response_;
-        var error;
-        request.post({
-            url: `http://${this.apiHost}:${this.apiPort}/api/1.0`,
-            json: true,
-            body: __
-        }, (error_, response, body) => {
-            if (!error_ && response.statusCode == 200) {
-                response_ = body;
-                done = true;
-            } else {
-                error = { error: error_ || "statusCode is not 200" };
-                done = true;
-            }
+        return new Promise((res, rej) => {
+            request.post({
+                url: `http://${this.apiHost}:${this.apiPort}/api/1.0`,
+                json: true,
+                body: __
+            }, (error, response, body) => {
+                if (!error && response.statusCode == 200) {
+                    res(body);
+                } else {
+                    rej({ error: error || "statusCode is not 200", body });
+                }
+            });
         });
-        deasync.loopWhile(() => { return !done });
-        deasync.sleep(100);
-        if (error)
-            return error;
-        else
-            return response_;
     }
 
     /**
@@ -252,7 +240,7 @@ class Utopia {
 
     setLowTrafficMode(enabled) {
         enabled = enabled || "";
-        return this.sendRequest("setLowTrafficMode", { "enavled": enabled });
+        return this.sendRequest("setLowTrafficMode", { "enabled": enabled });
     }
 
     /**
