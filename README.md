@@ -1,15 +1,12 @@
-# utopia-nodejs-api-lite
+# utopia-deno
+
+Deno library for Utopia Network API
 
 Usage: 
 ```javascript
-var apiClass = new (require("utopia-nodejs-api-lite"))("TOKEN");
-var data = apiClass.setProfileStatus("DoNotDisturb", "Understanding Utopia Node.js API");
-if(!data.error){
-    console.info(`Success: ${JSON.stringify(data, null, 4)}`);
-}else{
-    console.info(`Error: ${JSON.stringify(data.error, null, 4)}`);
-}
+//TODO
 ```
 
-## Installation
-`npm i utopia-nodejs-api-lite`
+(C) 2020 Oocrop
+(C) 2020 KaMeHb-UA
+(C) 2020 Sagleft
