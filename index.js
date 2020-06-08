@@ -1,3 +1,8 @@
+/*!
+ * Deno port of node.js Utopia API Lib https://github.com/Oocrop/utopia-nodejs-api-lite/tree/1965c4781cea0291a830b1817023ee02dab75f5e
+ * Author: KaMeHb-UA <blade.whiteblack@gmail.com>
+ */
+
 import {
     connectWebSocket,
     isWebSocketCloseEvent,
@@ -26,6 +31,8 @@ function createOutsideResolveablePromise(){
         promise, resolver, rejector
     ]
 }
+
+/** @typedef {Iterable<Promise<any>>} AsyncIterator */
 
 function createAsyncIterator(){
     let [ lastPromise, resolver, rejector ] = createOutsideResolveablePromise();
@@ -69,6 +76,25 @@ export default class Utopia{
     #webSocket
     #resolvers = {}
     #rejectors = {}
+    
+    /** @type {AsyncIterator} */
+    newOutgoingChannelMessage
+    /** @type {AsyncIterator} */
+    newChannelMessage
+    /** @type {AsyncIterator} */
+    newOutgoingInstantMessage
+    /** @type {AsyncIterator} */
+    newInstantMessage
+    /** @type {AsyncIterator} */
+    message
+    /** @type {AsyncIterator} */
+    channelJoinChanged
+    /** @type {AsyncIterator} */
+    newPaymentTransfer
+    /** @type {AsyncIterator} */
+    newEmail
+    /** @type {AsyncIterator} */
+    any
 
     //#region Internal methods
 
