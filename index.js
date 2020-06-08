@@ -140,8 +140,9 @@ class Utopia {
                 url: `http://${this.apiHost}:${this.apiPort}/api/1.0`,
                 json: true,
                 body: __
-            }, (error, response, body) => {
+            }, async (error, response, body) => {
                 if (!error && response.statusCode == 200) {
+                    await new Promise((res) => setTimeout(res, 100));
                     res(body);
                 } else {
                     rej({ error: error || "statusCode is not 200", body });
