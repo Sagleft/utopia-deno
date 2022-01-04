@@ -36,3 +36,9 @@ Both lists can be explored with your IDE thanks to typings included in lib
 (C) 2020 KaMeHb-UA
 
 (C) 2020 Sagleft
+
+---
+
+![image](https://github.com/Sagleft/Sagleft/raw/master/image.png)
+
+### :globe_with_meridians: [Telegram канал](https://t.me/+VIvd8j6xvm9iMzhi)
